@@ -969,7 +969,15 @@ function UnassignedRequests({ app }: { app: AppState }) {
       </section>
       <RequestFilterBar filters={filters} setFilters={setFilters} />
       <Card title={`طلبات غير محولة (${list.length})`}>
-        {list.length ? <RequestTable requests={list} customers={app.customers} /> : <Empty />}
+        {list.length ? (
+          <>
+            <div className="decision-hint">
+              <AlertTriangle size={18} />
+              <span>افتحي الطلب ثم اختاري: استكمال البيانات، تحويل لقسم، أو إغلاق من السنترال.</span>
+            </div>
+            <RequestTable requests={list} customers={app.customers} />
+          </>
+        ) : <Empty />}
       </Card>
     </Page>
   );
@@ -981,6 +989,7 @@ function RequestDetails({ app }: { app: AppState }) {
   if (!request) return <Page title="الطلب غير موجود"><Empty /></Page>;
   const customer = app.customers.find((c) => c.id === request.customerId)!;
   const events = app.timelines.filter((t) => t.requestId === request.id).sort((a, b) => +new Date(b.at) - +new Date(a.at));
+  const unassigned = isUnassignedRequest(request);
   const addContact = () => {
     // oxlint-disable-next-line react/purity
     const contact: ContactLog = { id: `cl${Date.now()}`, customerId: customer.id, requestId: request.id, at: new Date().toISOString(), direction: "صادر", result: "تم التأكيد", notes: "تم إضافة اتصال لاحق وتحديث سجل الطلب.", user: "قسم السنترال" };
@@ -994,8 +1003,46 @@ function RequestDetails({ app }: { app: AppState }) {
     app.setTimelines([{ id: `t${Date.now()}`, requestId: request.id, at: new Date().toISOString(), actor: "قسم السنترال", action: `تم إرسال تذكير إلى ${employeeName(request.assigneeId)}` }, ...app.timelines]);
     app.setToast("تم إرسال تذكير تجريبي");
   };
+  const completeInfo = () => {
+    const at = new Date().toISOString();
+    // oxlint-disable-next-line react/purity
+    const contact: ContactLog = { id: `cl${Date.now()}`, customerId: customer.id, requestId: request.id, at, direction: "صادر", result: "استكمال بيانات", notes: "تم التواصل مع العميل لاستكمال بيانات الطلب قبل التحويل.", user: "قسم السنترال" };
+    app.setContacts([contact, ...app.contacts]);
+    // oxlint-disable-next-line react/purity
+    app.setTimelines([{ id: `t${Date.now()}`, requestId: request.id, at, actor: "قسم السنترال", action: "استكمال بيانات الطلب قبل التحويل" }, ...app.timelines]);
+    app.setToast("تم تسجيل إجراء استكمال البيانات");
+  };
+  const transferRequest = () => {
+    const at = new Date().toISOString();
+    const nextAssignee = request.assigneeId || routeSuggestion[request.type];
+    app.setRequests(app.requests.map((item) => item.id === request.id ? { ...item, status: "بانتظار الاستلام", assigneeId: nextAssignee, transferredAt: at } : item));
+    // oxlint-disable-next-line react/purity
+    app.setTimelines([{ id: `t${Date.now()}`, requestId: request.id, at, actor: "قسم السنترال", action: `تم تحويل الطلب إلى ${employeeName(nextAssignee)}` }, ...app.timelines]);
+    app.setToast(`تم تحويل الطلب إلى ${employeeName(nextAssignee)}`);
+  };
+  const closeByCentral = () => {
+    const at = new Date().toISOString();
+    app.setRequests(app.requests.map((item) => item.id === request.id ? { ...item, status: "مغلق", internalNotes: `${item.internalNotes ? `${item.internalNotes}\n` : ""}تم إغلاق الطلب من السنترال بعد المعالجة المباشرة.` } : item));
+    // oxlint-disable-next-line react/purity
+    app.setTimelines([{ id: `t${Date.now()}`, requestId: request.id, at, actor: "قسم السنترال", action: "تم إغلاق الطلب من السنترال بعد المعالجة المباشرة" }, ...app.timelines]);
+    app.setToast("تم إغلاق الطلب من السنترال");
+  };
   return (
     <Page title={`طلب رقم #${request.number}`} subtitle={`${customer.name} · ${request.type}`} action={<Badge tone={statusClass(request.status)}>{request.status}</Badge>}>
+      {unassigned && (
+        <section className="decision-panel">
+          <div>
+            <span>قرار مطلوب</span>
+            <h2>هذا الطلب غير محول بعد</h2>
+            <p>اختاري الإجراء المناسب: استكمال البيانات، تحويله لقسم مسؤول، أو إغلاقه إذا تمت المعالجة من السنترال.</p>
+          </div>
+          <div className="decision-actions">
+            <button className="secondary" onClick={completeInfo}><PhoneCall size={16} />استكمال البيانات</button>
+            <button className="primary" onClick={transferRequest}><RefreshCw size={16} />تحويل لقسم</button>
+            <button className="secondary danger-text" onClick={closeByCentral}><ShieldCheck size={16} />إغلاق من السنترال</button>
+          </div>
+        </section>
+      )}
       <div className="grid two">
         <Card title="بيانات الطلب"><Info rows={[["العميل", customer.name], ["الهاتف", customer.phone], ["المسؤول الحالي", employeeName(request.assigneeId)], ["الأولوية", request.priority], ["تاريخ التسجيل", formatTime(request.createdAt)], ["موعد المتابعة", formatTime(request.followUpAt)], ["الوصف", request.description]]} /></Card>
         <Card title="إجراءات السنترال">
