@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import type { FormEvent, ReactNode } from "react";
 import { HashRouter, Link, Navigate, Route, Routes, useNavigate, useParams } from "react-router-dom";
 import {
+  AlertTriangle,
   Bell,
   ClipboardList,
   Clock,
@@ -9,9 +10,11 @@ import {
   Filter as FilterIcon,
   Home,
   LogOut,
+  MessageCircle,
   Menu,
   MessageSquareWarning,
   Phone,
+  PhoneCall,
   Plus,
   RefreshCw,
   Search,
@@ -19,9 +22,11 @@ import {
   ShieldCheck,
   SlidersHorizontal,
   Printer,
+  Sparkles,
   User,
   UserPlus,
   Users,
+  X,
 } from "lucide-react";
 import "./App.css";
 
@@ -244,7 +249,12 @@ function displayDepartmentText(value: string) {
 function useStoredState<T>(key: string, fallback: T) {
   const [state, setState] = useState<T>(() => {
     const raw = localStorage.getItem(key);
-    return raw ? JSON.parse(raw) as T : fallback;
+    if (!raw) return fallback;
+    try {
+      return JSON.parse(raw) as T;
+    } catch {
+      return fallback;
+    }
   });
   const save = (next: T) => {
     setState(next);
@@ -252,6 +262,37 @@ function useStoredState<T>(key: string, fallback: T) {
   };
   return [state, save] as const;
 }
+
+function digitsOnly(value: string) {
+  return value.replace(/[^\d+]/g, "");
+}
+
+function telHref(phone: string) {
+  return `tel:${digitsOnly(phone)}`;
+}
+
+function whatsappHref(phone: string, message: string) {
+  const localNumber = digitsOnly(phone).replace(/^0/, "");
+  return `https://wa.me/970${localNumber}?text=${encodeURIComponent(message)}`;
+}
+
+function isToday(value?: string) {
+  if (!value) return false;
+  const date = new Date(value);
+  const now = new Date();
+  return date.toDateString() === now.toDateString();
+}
+
+const descriptionTemplates: Record<RequestType, string[]> = {
+  "مشروع / زيارة موقع": ["يرغب العميل بزيارة الموقع لمعاينة المشروع وأخذ المقاسات.", "طلب عرض سعر لمشروع جديد يحتاج معاينة ميدانية."],
+  "طلب بيع": ["استفسار عن سعر ومواصفات منتج للشراء المباشر.", "يرغب العميل بشراء كمية محددة ويحتاج عرض سعر."],
+  استفسار: ["استفسار عام عن المنتجات والخدمات المتوفرة.", "استفسار عن مدة التنفيذ والتسليم."],
+  صيانة: ["عطل في الإغلاق يحتاج فحصًا من فريق التركيب.", "طلب صيانة دورية على منتج سابق."],
+  شكوى: ["شكوى من تأخر التنفيذ عن الموعد المتفق عليه.", "شكوى من جودة التركيب تحتاج معاينة."],
+  متابعة: ["متابعة حالة طلب سابق لم يصل رد بشأنه.", "تذكير بموعد سابق يحتاج تأكيد."],
+  "طلب داخلي": ["طلب داخلي يخص شؤون الموظفين.", "طلب تنسيق داخلي بين الأقسام."],
+  أخرى: ["طلب لا يندرج ضمن التصنيفات المعتادة."],
+};
 
 function formatTime(value?: string) {
   if (!value) return "—";
@@ -364,13 +405,17 @@ function App() {
 }
 
 function Login({ onLogin }: { onLogin: () => void }) {
-  const [username, setUsername] = useState("central");
-  const [password, setPassword] = useState("123456");
+  const [username, setUsername] = useState(() => localStorage.getItem("alnaseem-remembered-user") ?? "");
+  const [password, setPassword] = useState("");
+  const [remember, setRemember] = useState(() => !!localStorage.getItem("alnaseem-remembered-user"));
   const [error, setError] = useState("");
   const submit = (event: FormEvent) => {
     event.preventDefault();
-    if (username === "central" && password === "123456") onLogin();
-    else setError("اسم المستخدم أو كلمة المرور غير صحيحة.");
+    if (username === "central" && password === "123456") {
+      if (remember) localStorage.setItem("alnaseem-remembered-user", username);
+      else localStorage.removeItem("alnaseem-remembered-user");
+      onLogin();
+    } else setError("اسم المستخدم أو كلمة المرور غير صحيحة.");
   };
   return (
     <main className="login-page">
@@ -378,18 +423,19 @@ function Login({ onLogin }: { onLogin: () => void }) {
         <Logo />
         <h1>نظام السنترال</h1>
         <p>دخول موظفة الاستقبال لتوثيق الاتصالات وتحويل الطلبات.</p>
-        <label>اسم المستخدم<input value={username} onChange={(e) => setUsername(e.target.value)} /></label>
+        <label>اسم المستخدم<input value={username} onChange={(e) => setUsername(e.target.value)} autoFocus /></label>
         <label>كلمة المرور<input type="password" value={password} onChange={(e) => setPassword(e.target.value)} /></label>
-        <label className="remember"><input type="checkbox" /> تذكرني</label>
-        {error && <div className="error">{error}</div>}
+        <label className="remember"><input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} /> تذكرني</label>
+        {error && <div className="error" role="alert">{error}</div>}
         <button className="primary">دخول</button>
         <button type="button" className="linkish">نسيت كلمة المرور؟</button>
+        <p className="demo-hint">بيانات تجريبية: central / 123456</p>
       </form>
     </main>
   );
 }
 
-type AppState = ReturnType<typeof App> extends never ? never : {
+interface AppState {
   customers: Customer[]; setCustomers: (v: Customer[]) => void;
   requests: RequestItem[]; setRequests: (v: RequestItem[]) => void;
   contacts: ContactLog[]; setContacts: (v: ContactLog[]) => void;
@@ -398,9 +444,10 @@ type AppState = ReturnType<typeof App> extends never ? never : {
   maintenance: MaintenanceRequest[]; setMaintenance: (v: MaintenanceRequest[]) => void;
   notifications: AppNotification[]; setNotifications: (v: AppNotification[]) => void;
   setToast: (v: string) => void;
-};
+}
 
 function Shell({ onLogout, unread, app, resetData }: { onLogout: () => void; unread: number; app: AppState; resetData: () => void }) {
+  const [navOpen, setNavOpen] = useState(false);
   const items = [
     ["/dashboard", "الرئيسية", Home],
     ["/requests/new", "تسجيل اتصال / طلب جديد", Plus],
@@ -414,14 +461,19 @@ function Shell({ onLogout, unread, app, resetData }: { onLogout: () => void; unr
     ["/settings", "الإعدادات", Settings],
   ] as const;
   return (
-    <div className="app-shell">
+    <div className={`app-shell ${navOpen ? "nav-open" : ""}`}>
+      {navOpen && <button className="nav-scrim" aria-label="إغلاق القائمة" onClick={() => setNavOpen(false)} />}
       <aside>
-        <Link className="brand" to="/dashboard"><Logo compact /></Link>
-        <nav>{items.map(([href, label, Icon]) => <Link key={href} to={href}><Icon size={18} />{label}{label === "الإشعارات" && unread > 0 ? <span>{unread}</span> : null}</Link>)}</nav>
+        <Link className="brand" to="/dashboard" onClick={() => setNavOpen(false)}><Logo compact /></Link>
+        <nav>{items.map(([href, label, Icon]) => <Link key={href} to={href} onClick={() => setNavOpen(false)}><Icon size={18} />{label}{label === "الإشعارات" && unread > 0 ? <span>{unread}</span> : null}</Link>)}</nav>
         <button className="logout" onClick={onLogout}><LogOut size={18} />تسجيل الخروج</button>
       </aside>
       <section className="workspace">
-        <header className="topbar"><Menu /><div><strong>قسم السنترال</strong><small>الاستقبال وتحويل الطلبات</small></div></header>
+        <header className="topbar">
+          <button className="menu-toggle" aria-label="فتح القائمة" onClick={() => setNavOpen((v) => !v)}><Menu /></button>
+          <div><strong>قسم السنترال</strong><small>الاستقبال وتحويل الطلبات</small></div>
+          <TopSearch customers={app.customers} requests={app.requests} />
+        </header>
         <Routes>
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
           <Route path="/dashboard" element={<Dashboard app={app} />} />
@@ -438,8 +490,55 @@ function Shell({ onLogout, unread, app, resetData }: { onLogout: () => void; unr
           <Route path="/notifications" element={<Notifications app={app} />} />
           <Route path="/reports" element={<Reports app={app} />} />
           <Route path="/settings" element={<SettingsPage resetData={resetData} />} />
+          <Route path="*" element={<NotFound />} />
         </Routes>
       </section>
+    </div>
+  );
+}
+
+function NotFound() {
+  return (
+    <Page title="الصفحة غير موجودة">
+      <div className="empty"><AlertTriangle />هذا المسار غير متوفر. <Link className="secondary" to="/dashboard">العودة للرئيسية</Link></div>
+    </Page>
+  );
+}
+
+function TopSearch({ customers, requests }: { customers: Customer[]; requests: RequestItem[] }) {
+  const [q, setQ] = useState("");
+  const [open, setOpen] = useState(false);
+  const query = q.trim();
+  const customerResults = query ? customers.filter((c) => `${c.name} ${c.phone} ${c.company ?? ""}`.includes(query)).slice(0, 4) : [];
+  const requestResults = query ? requests.filter((r) => `${r.number} ${r.description}`.includes(query)).slice(0, 4) : [];
+  const hasResults = customerResults.length > 0 || requestResults.length > 0;
+  return (
+    <div className="top-search">
+      <div className="searchbox">
+        <Search size={18} />
+        <input
+          placeholder="بحث سريع: عميل، هاتف، أو رقم طلب"
+          value={q}
+          onChange={(e) => { setQ(e.target.value); setOpen(true); }}
+          onFocus={() => setOpen(true)}
+        />
+        {q && <button type="button" className="clear-btn" aria-label="مسح" onClick={() => { setQ(""); setOpen(false); }}><X size={16} /></button>}
+      </div>
+      {open && query && (
+        <div className="top-search-results">
+          {!hasResults && <div className="empty">لا توجد نتائج مطابقة.</div>}
+          {customerResults.map((c) => (
+            <Link key={c.id} to={`/customers/${c.id}`} className="top-search-row" onClick={() => setOpen(false)}>
+              <User size={16} /><span><b>{c.name}</b><small>{c.phone}</small></span>
+            </Link>
+          ))}
+          {requestResults.map((r) => (
+            <Link key={r.id} to={`/requests/${r.id}`} className="top-search-row" onClick={() => setOpen(false)}>
+              <ClipboardList size={16} /><span><b>طلب #{r.number}</b><small>{r.type}</small></span>
+            </Link>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -449,8 +548,9 @@ function Page({ title, subtitle, action, children }: { title: string; subtitle?:
 }
 
 function Logo({ compact = false }: { compact?: boolean }) {
-  const [src, setSrc] = useState(logoSrc);
-  return <img className={compact ? "logo compact-logo" : "logo"} src={src} alt="alnaseem" onError={() => setSrc("/blueprint/alnaseem-logo.png")} />;
+  const [failed, setFailed] = useState(false);
+  if (failed) return <div className={compact ? "logo compact-logo logo-fallback" : "logo logo-fallback"}>النسيم</div>;
+  return <img className={compact ? "logo compact-logo" : "logo"} src={logoSrc} alt="alnaseem" onError={() => setFailed(true)} />;
 }
 
 function Stat({ icon, label, value, tone }: { icon: ReactNode; label: string; value: number; tone: string }) {
@@ -459,11 +559,13 @@ function Stat({ icon, label, value, tone }: { icon: ReactNode; label: string; va
 
 function Dashboard({ app }: { app: AppState }) {
   const due = app.requests.filter((r) => r.followUpAt || ["بانتظار الاستلام", "بانتظار معلومات", "موعد محدد"].includes(r.status)).slice(0, 6);
+  const callsToday = app.contacts.filter((c) => isToday(c.at)).length;
+  const newRequestsToday = app.requests.filter((r) => isToday(r.createdAt)).length;
   return (
     <Page title="صباح الخير" subtitle="إليك ملخص عمل السنترال اليوم" action={<Link className="primary pill" to="/requests/new"><Plus size={18} />تسجيل اتصال / طلب جديد</Link>}>
       <div className="stats">
-        <Stat icon={<Phone />} label="اتصالات اليوم" value={18} tone="green" />
-        <Stat icon={<ClipboardList />} label="طلبات جديدة" value={7} tone="blue" />
+        <Stat icon={<Phone />} label="اتصالات اليوم" value={callsToday} tone="green" />
+        <Stat icon={<ClipboardList />} label="طلبات جديدة اليوم" value={newRequestsToday} tone="blue" />
         <Stat icon={<Clock />} label="بانتظار الاستلام" value={app.requests.filter((r) => r.status === "بانتظار الاستلام").length} tone="orange" />
         <Stat icon={<Bell />} label="تحتاج متابعة" value={due.length} tone="purple" />
       </div>
@@ -502,22 +604,33 @@ function CustomerRow({ customer, onPick }: { customer: Customer; onPick?: (custo
       <div className="avatar"><User /></div>
       <div><b>{customer.name}</b><span>{customer.phone} · {customer.city}</span></div>
       <Badge tone="success">عميل موجود</Badge>
+      <a className="icon-btn" href={telHref(customer.phone)} title="اتصال سريع" onClick={(e) => e.stopPropagation()}><PhoneCall size={16} /></a>
+      <a className="icon-btn whatsapp" href={whatsappHref(customer.phone, `مرحبًا ${customer.name}، معك قسم السنترال في شركة النسيم إخوان.`)} target="_blank" rel="noreferrer" title="واتساب" onClick={(e) => e.stopPropagation()}><MessageCircle size={16} /></a>
       {onPick ? <button className="secondary" onClick={() => onPick(customer)}>اختيار</button> : <Link className="secondary" to={`/customers/${customer.id}`}>عرض الملف</Link>}
     </div>
   );
 }
 
 function Customers({ app }: { app: AppState }) {
-  return <Page title="العملاء" subtitle="بحث سريع ونتائج متعددة عند تشابه الأسماء" action={<Link className="primary pill" to="/customers/new"><UserPlus size={18} />إنشاء عميل</Link>}><CustomerSearch customers={app.customers} /><Card title="كل العملاء">{app.customers.slice(0, 12).map((c) => <CustomerRow key={c.id} customer={c} />)}</Card></Page>;
+  const [visible, setVisible] = useState(12);
+  return (
+    <Page title="العملاء" subtitle="بحث سريع ونتائج متعددة عند تشابه الأسماء" action={<Link className="primary pill" to="/customers/new"><UserPlus size={18} />إنشاء عميل</Link>}>
+      <CustomerSearch customers={app.customers} />
+      <Card title={`كل العملاء (${app.customers.length})`}>
+        {app.customers.slice(0, visible).map((c) => <CustomerRow key={c.id} customer={c} />)}
+        {visible < app.customers.length && <button className="secondary load-more" onClick={() => setVisible((v) => v + 12)}>عرض المزيد</button>}
+      </Card>
+    </Page>
+  );
 }
 
 function NewCustomer({ app }: { app: AppState }) {
   const navigate = useNavigate();
   const [form, setForm] = useState({ name: "", phone: "", altPhone: "", company: "", city: "رام الله", address: "", email: "", notes: "" });
+  const duplicate = form.phone ? app.customers.find((c) => c.phone === form.phone) : undefined;
   const save = (event: FormEvent) => {
     event.preventDefault();
     if (!form.name || !form.phone) return app.setToast("يرجى استكمال الحقول المطلوبة");
-    const duplicate = app.customers.find((c) => c.phone === form.phone);
     if (duplicate) return app.setToast("رقم الهاتف مستخدم مسبقًا");
     const customer: Customer = { id: `c${Date.now()}`, createdAt: new Date().toISOString(), ...form };
     app.setCustomers([customer, ...app.customers]);
@@ -528,14 +641,17 @@ function NewCustomer({ app }: { app: AppState }) {
     <Page title="إنشاء عميل جديد" subtitle="الاسم ورقم الهاتف إلزاميان">
       <form className="form card" onSubmit={save}>
         <input required placeholder="اسم العميل *" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
-        <input required placeholder="رقم الهاتف *" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
+        <div>
+          <input required placeholder="رقم الهاتف *" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
+          {duplicate && <p className="field-warning"><AlertTriangle size={14} /> الرقم مسجل مسبقًا للعميل «{duplicate.name}» — <Link to={`/customers/${duplicate.id}`}>عرض ملفه</Link></p>}
+        </div>
         <input placeholder="هاتف إضافي" value={form.altPhone} onChange={(e) => setForm({ ...form, altPhone: e.target.value })} />
         <input placeholder="اسم الشركة" value={form.company} onChange={(e) => setForm({ ...form, company: e.target.value })} />
         <select value={form.city} onChange={(e) => setForm({ ...form, city: e.target.value })}>{cities.map((city) => <option key={city}>{city}</option>)}</select>
         <input placeholder="العنوان" value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} />
         <input placeholder="البريد الإلكتروني" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
         <textarea placeholder="ملاحظات" value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
-        <button className="primary">حفظ العميل</button>
+        <button className="primary" disabled={!!duplicate}>حفظ العميل</button>
       </form>
     </Page>
   );
@@ -753,7 +869,7 @@ function NewRequest({ app }: { app: AppState }) {
     if (priority === "عاجل" && !urgentReason) return app.setToast("سبب الاستعجال مطلوب");
     const request: RequestItem = {
       id: `r${Date.now()}`,
-      number: Math.max(...app.requests.map((r) => r.number)) + 1,
+      number: Math.max(0, ...app.requests.map((r) => r.number)) + 1,
       customerId: customer.id,
       type,
       description,
@@ -778,6 +894,12 @@ function NewRequest({ app }: { app: AppState }) {
         <section className="card form">
           <h2>بيانات الطلب</h2>
           <select value={type} onChange={(e) => updateType(e.target.value as RequestType)}>{Object.keys(routeSuggestion).map((item) => <option key={item}>{item}</option>)}</select>
+          <div className="template-chips">
+            <span><Sparkles size={14} /> قوالب سريعة:</span>
+            {descriptionTemplates[type].map((template) => (
+              <button type="button" key={template} className="chip" onClick={() => setDescription(template)}>{template.length > 28 ? `${template.slice(0, 28)}…` : template}</button>
+            ))}
+          </div>
           <textarea placeholder="وصف الطلب *" value={description} onChange={(e) => setDescription(e.target.value)} />
           <select value={assigneeId} onChange={(e) => setAssigneeId(e.target.value)}>{employees.map((e) => <option value={e.id} key={e.id}>{e.role}</option>)}</select>
           <div className="segmented">{(["عادي", "مهم", "عاجل"] as Priority[]).map((p) => <button type="button" className={priority === p ? "active" : ""} onClick={() => setPriority(p)} key={p}>{p}</button>)}</div>
@@ -819,7 +941,15 @@ function RequestDetails({ app }: { app: AppState }) {
     <Page title={`طلب رقم #${request.number}`} subtitle={`${customer.name} · ${request.type}`} action={<Badge tone={statusClass(request.status)}>{request.status}</Badge>}>
       <div className="grid two">
         <Card title="بيانات الطلب"><Info rows={[["العميل", customer.name], ["الهاتف", customer.phone], ["المسؤول الحالي", employeeName(request.assigneeId)], ["الأولوية", request.priority], ["تاريخ التسجيل", formatTime(request.createdAt)], ["موعد المتابعة", formatTime(request.followUpAt)], ["الوصف", request.description]]} /></Card>
-        <Card title="إجراءات السنترال"><div className="actions"><button className="secondary" onClick={addContact}>إضافة اتصال لاحق</button>{request.status === "بانتظار الاستلام" && <button className="secondary danger-text" onClick={remind}>تذكير المسؤول</button>}</div>{request.status === "بانتظار الاستلام" && <p className="warning-box">هذا الطلب لم يتم استلامه حتى الآن.</p>}</Card>
+        <Card title="إجراءات السنترال">
+          <div className="actions">
+            <a className="secondary" href={telHref(customer.phone)}><PhoneCall size={16} />اتصال بالعميل</a>
+            <a className="secondary" href={whatsappHref(customer.phone, `مرحبًا ${customer.name}، بخصوص طلبك رقم #${request.number}.`)} target="_blank" rel="noreferrer"><MessageCircle size={16} />واتساب</a>
+            <button className="secondary" onClick={addContact}>إضافة اتصال لاحق</button>
+            {request.status === "بانتظار الاستلام" && <button className="secondary danger-text" onClick={remind}>تذكير المسؤول</button>}
+          </div>
+          {request.status === "بانتظار الاستلام" && <p className="warning-box">هذا الطلب لم يتم استلامه حتى الآن.</p>}
+        </Card>
       </div>
       <Card title="سجل الحركة">{events.map((event) => <div className="timeline" key={event.id}><time>{formatTime(event.at)}</time><div><b>{displayDepartmentText(event.actor)}</b><p>{displayDepartmentText(event.action)}</p></div></div>)}</Card>
     </Page>
@@ -852,7 +982,21 @@ function Maintenance({ app }: { app: AppState }) {
 
 function Notifications({ app }: { app: AppState }) {
   const markAll = () => { app.setNotifications(app.notifications.map((n) => ({ ...n, read: true }))); app.setToast("تم تعليم الكل كمقروء"); };
-  return <Page title="الإشعارات" action={<button className="secondary" onClick={markAll}>تعليم الكل كمقروء</button>}><Card title="التنبيهات">{app.notifications.map((n) => <div className={`notice ${n.read ? "read" : ""}`} key={n.id}><Bell size={18} /><div><b>{n.title}</b><p>{n.description} · {formatTime(n.at)}</p></div>{n.requestId && <Link className="secondary" to={`/requests/${n.requestId}`}>فتح الطلب</Link>}</div>)}</Card></Page>;
+  const markOne = (id: string) => app.setNotifications(app.notifications.map((n) => (n.id === id ? { ...n, read: true } : n)));
+  return (
+    <Page title="الإشعارات" action={<button className="secondary" onClick={markAll}>تعليم الكل كمقروء</button>}>
+      <Card title="التنبيهات">
+        {app.notifications.map((n) => (
+          <div className={`notice ${n.read ? "read" : ""}`} key={n.id}>
+            <Bell size={18} />
+            <div><b>{n.title}</b><p>{n.description} · {formatTime(n.at)}</p></div>
+            {!n.read && <button className="linkish" onClick={() => markOne(n.id)}>تعليم كمقروء</button>}
+            {n.requestId && <Link className="secondary" to={`/requests/${n.requestId}`} onClick={() => markOne(n.id)}>فتح الطلب</Link>}
+          </div>
+        ))}
+      </Card>
+    </Page>
+  );
 }
 
 function Reports({ app }: { app: AppState }) {
