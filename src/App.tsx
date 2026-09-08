@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import type { FormEvent, ReactNode } from "react";
-import { HashRouter, Link, Navigate, Route, Routes, useNavigate, useParams } from "react-router-dom";
+import { HashRouter, Link, Navigate, Route, Routes, useLocation, useNavigate, useParams } from "react-router-dom";
 import {
   AlertTriangle,
   Bell,
@@ -483,6 +483,7 @@ function Shell({ onLogout, unread, app, resetData }: { onLogout: () => void; unr
           <Route path="/requests" element={<Requests app={app} />} />
           <Route path="/requests/new" element={<NewRequest app={app} />} />
           <Route path="/requests/:id" element={<RequestDetails app={app} />} />
+          <Route path="/contacts-today" element={<ContactsToday app={app} />} />
           <Route path="/transferred" element={<Transferred app={app} />} />
           <Route path="/follow-ups" element={<FollowUps app={app} />} />
           <Route path="/complaints" element={<Complaints app={app} />} />
@@ -557,27 +558,57 @@ function Stat({ icon, label, value, tone }: { icon: ReactNode; label: string; va
   return <div className={`stat ${tone}`}>{icon}<div><b>{value}</b><span>{label}</span></div></div>;
 }
 
-function Dashboard({ app }: { app: AppState }) {
-  const due = app.requests.filter((r) => r.followUpAt || ["بانتظار الاستلام", "بانتظار معلومات", "موعد محدد"].includes(r.status)).slice(0, 6);
-  const callsToday = app.contacts.filter((c) => isToday(c.at)).length;
-  const newRequestsToday = app.requests.filter((r) => isToday(r.createdAt)).length;
+function WorkTile({ to, icon, count, title, hint, tone }: { to: string; icon: ReactNode; count: number; title: string; hint: string; tone: string }) {
   return (
-    <Page title="صباح الخير" subtitle="إليك ملخص عمل السنترال اليوم" action={<Link className="primary pill" to="/requests/new"><Plus size={18} />تسجيل اتصال / طلب جديد</Link>}>
-      <div className="stats">
-        <Stat icon={<Phone />} label="اتصالات اليوم" value={callsToday} tone="green" />
-        <Stat icon={<ClipboardList />} label="طلبات جديدة اليوم" value={newRequestsToday} tone="blue" />
-        <Stat icon={<Clock />} label="بانتظار الاستلام" value={app.requests.filter((r) => r.status === "بانتظار الاستلام").length} tone="orange" />
-        <Stat icon={<Bell />} label="تحتاج متابعة" value={due.length} tone="purple" />
+    <Link className={`work-tile ${tone}`} to={to}>
+      <span className="work-icon">{icon}</span>
+      <strong>{count}</strong>
+      <b>{title}</b>
+      <small>{hint}</small>
+    </Link>
+  );
+}
+
+function Dashboard({ app }: { app: AppState }) {
+  const waiting = app.requests.filter((r) => r.status === "بانتظار الاستلام");
+  const followUps = app.requests.filter((r) => r.followUpAt || ["بانتظار معلومات", "موعد محدد", "قيد المتابعة"].includes(r.status));
+  const todayRequests = app.requests.filter((r) => isToday(r.createdAt));
+  const callsToday = app.contacts.filter((c) => isToday(c.at)).length;
+  const priorityList = waiting.length ? waiting : followUps.length ? followUps : todayRequests;
+  const priorityTitle = waiting.length ? "طلبات بانتظار الاستلام" : followUps.length ? "متابعات تحتاج إجراء" : "طلبات اليوم";
+  const priorityTarget = waiting.length ? "/requests?status=بانتظار الاستلام" : followUps.length ? "/follow-ups" : "/requests?date=today";
+  return (
+    <Page title="صباح الخير" subtitle="ابدئي بأهم إجراء، ثم انتقلي للباقي حسب الحاجة" action={<Link className="primary pill" to="/requests/new"><Plus size={18} />تسجيل اتصال / طلب جديد</Link>}>
+      <section className="focus-panel">
+        <div>
+          <span>الأولوية الآن</span>
+          <h2>{priorityTitle}</h2>
+          <p>{priorityList.length ? `يوجد ${priorityList.length} عنصر يحتاج متابعة منظمة.` : "لا توجد مهام ضاغطة الآن."}</p>
+        </div>
+        <Link className="primary pill" to={priorityTarget}><Clock size={18} />ابدأ بأهم مهمة الآن</Link>
+      </section>
+
+      <div className="work-grid">
+        <WorkTile to="/contacts-today" icon={<Phone />} count={callsToday} title="اتصالات اليوم" hint="راجعي آخر الاتصالات" tone="green" />
+        <WorkTile to="/requests?date=today" icon={<ClipboardList />} count={todayRequests.length} title="طلبات جديدة اليوم" hint="افتحي طلبات اليوم" tone="blue" />
+        <WorkTile to="/requests?status=بانتظار الاستلام" icon={<Clock />} count={waiting.length} title="بانتظار الاستلام" hint="ابدئي بها أولًا" tone="orange" />
+        <WorkTile to="/follow-ups" icon={<Bell />} count={followUps.length} title="تحتاج متابعة" hint="مواعيد وتنبيهات" tone="purple" />
       </div>
+
       <div className="grid two">
-        <Card title="الطلبات التي تحتاج متابعة">
-          <RequestTable requests={due} customers={app.customers} compact />
+        <Card title={priorityTitle}>
+          {priorityList.length ? <RequestTable requests={priorityList.slice(0, 5)} customers={app.customers} compact /> : <Empty />}
+          {priorityList.length > 5 && <Link className="secondary load-more" to={priorityTarget}>عرض كل النتائج</Link>}
         </Card>
-        <Card title="تنبيهات سريعة">
-          {app.notifications.filter((n) => !n.read).slice(0, 5).map((n) => <div className="notice" key={n.id}><Bell size={18} /><div><b>{n.title}</b><p>{n.description}</p></div></div>)}
+        <Card title="اختصارات العمل">
+          <div className="shortcut-list">
+            <Link className="secondary" to="/requests/new"><Plus size={18} />تسجيل اتصال / طلب جديد</Link>
+            <Link className="secondary" to="/customers"><Users size={18} />بحث في العملاء</Link>
+            <Link className="secondary" to="/reports"><FileText size={18} />فتح التقارير</Link>
+            <Link className="secondary" to="/notifications"><Bell size={18} />الإشعارات</Link>
+          </div>
         </Card>
       </div>
-      <Card title="آخر الاتصالات"><ContactTable contacts={app.contacts.slice(0, 8)} customers={app.customers} /></Card>
     </Page>
   );
 }
@@ -913,7 +944,8 @@ function NewRequest({ app }: { app: AppState }) {
 }
 
 function Requests({ app }: { app: AppState }) {
-  const [filters, setFilters] = useState<RequestFilters>(emptyFilters);
+  const location = useLocation();
+  const [filters, setFilters] = useState<RequestFilters>(() => filtersFromSearch(location.search));
   const list = applyRequestFilters(app.requests, app.customers, filters);
   return <Page title="الطلبات الواردة" subtitle="فلترة حسب الاسم، التاريخ، الحالة، النوع، والجهة"><RequestFilterBar filters={filters} setFilters={setFilters} /><Card title={`قائمة الطلبات (${list.length})`}><RequestTable requests={list} customers={app.customers} /></Card></Page>;
 }
@@ -957,15 +989,28 @@ function RequestDetails({ app }: { app: AppState }) {
 }
 
 function Transferred({ app }: { app: AppState }) {
-  const [filters, setFilters] = useState<RequestFilters>({ ...emptyFilters, status: "الكل" });
+  const location = useLocation();
+  const [filters, setFilters] = useState<RequestFilters>(() => filtersFromSearch(location.search));
   const list = applyRequestFilters(app.requests.filter((r) => r.transferredAt), app.customers, filters);
   return <Page title="الطلبات المحولة" subtitle="متابعة وقت التحويل والاستلام حسب الجهة"><RequestFilterBar filters={filters} setFilters={setFilters} /><Card title={`النتائج (${list.length})`}><RequestTable requests={list} customers={app.customers} /></Card></Page>;
 }
 
 function FollowUps({ app }: { app: AppState }) {
-  const [filters, setFilters] = useState<RequestFilters>(emptyFilters);
+  const location = useLocation();
+  const [filters, setFilters] = useState<RequestFilters>(() => filtersFromSearch(location.search));
   const list = applyRequestFilters(app.requests.filter((r) => r.followUpAt), app.customers, filters);
   return <Page title="المتابعة" subtitle="اليوم، المتأخرة، وهذا الأسبوع"><RequestFilterBar filters={filters} setFilters={setFilters} /><Card title={`قائمة المتابعات (${list.length})`}><RequestTable requests={list} customers={app.customers} /></Card></Page>;
+}
+
+function ContactsToday({ app }: { app: AppState }) {
+  const contacts = app.contacts.filter((contact) => isToday(contact.at));
+  return (
+    <Page title="اتصالات اليوم" subtitle="الاتصالات المسجلة اليوم للمتابعة السريعة" action={<Link className="primary pill" to="/requests/new"><Plus size={18} />تسجيل اتصال جديد</Link>}>
+      <Card title={`الاتصالات (${contacts.length})`}>
+        {contacts.length ? <ContactTable contacts={contacts} customers={app.customers} /> : <Empty />}
+      </Card>
+    </Page>
+  );
 }
 
 function Complaints({ app }: { app: AppState }) {
@@ -1037,6 +1082,26 @@ function SettingsPage({ resetData }: { resetData: () => void }) {
 }
 
 const emptyFilters: RequestFilters = { query: "", status: "الكل", type: "الكل", assigneeId: "الكل", dateFrom: "", dateTo: "" };
+
+function todayInputValue() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function filtersFromSearch(search: string) {
+  const params = new URLSearchParams(search);
+  const filters = { ...emptyFilters };
+  const status = params.get("status");
+  const type = params.get("type");
+  const assigneeId = params.get("assigneeId");
+  if (status) filters.status = status;
+  if (type) filters.type = type;
+  if (assigneeId) filters.assigneeId = assigneeId;
+  if (params.get("date") === "today") {
+    filters.dateFrom = todayInputValue();
+    filters.dateTo = todayInputValue();
+  }
+  return filters;
+}
 
 function RequestFilterBar({ filters, setFilters }: { filters: RequestFilters; setFilters: (v: RequestFilters) => void }) {
   return (
