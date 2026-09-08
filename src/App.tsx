@@ -1083,16 +1083,31 @@ function UnassignedRequestActions({ app, request, customer }: { app: AppState; r
       </section>
       <section className="card edit-request-form">
         <h2>استكمال بيانات الطلب</h2>
-        <label>نوع الطلب<select value={draft.type} onChange={(event) => {
+        <label>نوع الطلب / التصنيف<select value={draft.type} onChange={(event) => {
           const type = event.target.value as RequestType;
           setDraft({ ...draft, type, assigneeId: routeSuggestion[type] });
         }}>{Object.keys(routeSuggestion).map((item) => <option key={item}>{item}</option>)}</select></label>
-        <label>القسم المسؤول<select value={draft.assigneeId} onChange={(event) => setDraft({ ...draft, assigneeId: event.target.value })}>{employees.map((employee) => <option value={employee.id} key={employee.id}>{employee.role}</option>)}</select></label>
+        <label>القسم المسؤول للتحويل<select value={draft.assigneeId} onChange={(event) => setDraft({ ...draft, assigneeId: event.target.value })}>{employees.map((employee) => <option value={employee.id} key={employee.id}>{employee.role}</option>)}</select></label>
         <label>الأولوية<select value={draft.priority} onChange={(event) => setDraft({ ...draft, priority: event.target.value as Priority })}>{(["عادي", "مهم", "عاجل"] as Priority[]).map((item) => <option key={item}>{item}</option>)}</select></label>
         <label>موعد المتابعة<input type="datetime-local" value={draft.followUpAt} onChange={(event) => setDraft({ ...draft, followUpAt: event.target.value })} /></label>
         {draft.priority === "عاجل" && <label>سبب الاستعجال<input value={draft.urgentReason} onChange={(event) => setDraft({ ...draft, urgentReason: event.target.value })} /></label>}
-        <label className="wide">وصف الطلب<textarea value={draft.description} onChange={(event) => setDraft({ ...draft, description: event.target.value })} /></label>
-        <label className="wide">ملاحظات داخلية<textarea value={draft.internalNotes} onChange={(event) => setDraft({ ...draft, internalNotes: event.target.value })} /></label>
+        <div className="wide template-chips">
+          <span><Sparkles size={14} /> قوالب وصف سريعة:</span>
+          {descriptionTemplates[draft.type].map((template) => (
+            <button type="button" key={template} className="chip" onClick={() => setDraft({ ...draft, description: template })}>{template.length > 32 ? `${template.slice(0, 32)}…` : template}</button>
+          ))}
+        </div>
+        <div className="wide department-picker">
+          <span>اختيار جهة التحويل</span>
+          {employees.map((employee) => (
+            <button type="button" key={employee.id} className={draft.assigneeId === employee.id ? "selected" : ""} onClick={() => setDraft({ ...draft, assigneeId: employee.id })}>
+              <Users size={16} />
+              {employee.role}
+            </button>
+          ))}
+        </div>
+        <label className="wide">وصف المشكلة / الطلب<textarea value={draft.description} onChange={(event) => setDraft({ ...draft, description: event.target.value })} /></label>
+        <label className="wide">ملاحظة داخلية قبل التحويل<textarea value={draft.internalNotes} onChange={(event) => setDraft({ ...draft, internalNotes: event.target.value })} /></label>
       </section>
     </>
   );
