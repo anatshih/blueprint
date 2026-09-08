@@ -26,6 +26,16 @@ pnpm install
 pnpm dev
 ```
 
+## GitHub Pages
+
+The built static site is committed in `docs/` for GitHub Pages. In repository settings, use:
+
+```text
+Source: Deploy from a branch
+Branch: main
+Folder: /docs
+```
+
 Demo login:
 
 ```text
