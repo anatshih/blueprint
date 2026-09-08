@@ -283,6 +283,10 @@ function isToday(value?: string) {
   return date.toDateString() === now.toDateString();
 }
 
+function isUnassignedRequest(request: RequestItem) {
+  return !request.transferredAt || request.status === "مسودة";
+}
+
 const descriptionTemplates: Record<RequestType, string[]> = {
   "مشروع / زيارة موقع": ["يرغب العميل بزيارة الموقع لمعاينة المشروع وأخذ المقاسات.", "طلب عرض سعر لمشروع جديد يحتاج معاينة ميدانية."],
   "طلب بيع": ["استفسار عن سعر ومواصفات منتج للشراء المباشر.", "يرغب العميل بشراء كمية محددة ويحتاج عرض سعر."],
@@ -452,6 +456,7 @@ function Shell({ onLogout, unread, app, resetData }: { onLogout: () => void; unr
     ["/dashboard", "الرئيسية", Home],
     ["/requests/new", "تسجيل اتصال / طلب جديد", Plus],
     ["/requests", "الطلبات الواردة", ClipboardList],
+    ["/unassigned", "طلبات غير محولة", AlertTriangle],
     ["/transferred", "الطلبات المحولة", RefreshCw],
     ["/follow-ups", "المتابعة", Clock],
     ["/customers", "العملاء", Users],
@@ -483,6 +488,7 @@ function Shell({ onLogout, unread, app, resetData }: { onLogout: () => void; unr
           <Route path="/requests" element={<Requests app={app} />} />
           <Route path="/requests/new" element={<NewRequest app={app} />} />
           <Route path="/requests/:id" element={<RequestDetails app={app} />} />
+          <Route path="/unassigned" element={<UnassignedRequests app={app} />} />
           <Route path="/contacts-today" element={<ContactsToday app={app} />} />
           <Route path="/transferred" element={<Transferred app={app} />} />
           <Route path="/follow-ups" element={<FollowUps app={app} />} />
@@ -570,13 +576,14 @@ function WorkTile({ to, icon, count, title, hint, tone }: { to: string; icon: Re
 }
 
 function Dashboard({ app }: { app: AppState }) {
+  const unassigned = app.requests.filter(isUnassignedRequest);
   const waiting = app.requests.filter((r) => r.status === "بانتظار الاستلام");
   const followUps = app.requests.filter((r) => r.followUpAt || ["بانتظار معلومات", "موعد محدد", "قيد المتابعة"].includes(r.status));
   const todayRequests = app.requests.filter((r) => isToday(r.createdAt));
   const callsToday = app.contacts.filter((c) => isToday(c.at)).length;
-  const priorityList = waiting.length ? waiting : followUps.length ? followUps : todayRequests;
-  const priorityTitle = waiting.length ? "طلبات بانتظار الاستلام" : followUps.length ? "متابعات تحتاج إجراء" : "طلبات اليوم";
-  const priorityTarget = waiting.length ? "/requests?status=بانتظار الاستلام" : followUps.length ? "/follow-ups" : "/requests?date=today";
+  const priorityList = unassigned.length ? unassigned : waiting.length ? waiting : followUps.length ? followUps : todayRequests;
+  const priorityTitle = unassigned.length ? "طلبات غير محولة" : waiting.length ? "طلبات بانتظار الاستلام" : followUps.length ? "متابعات تحتاج إجراء" : "طلبات اليوم";
+  const priorityTarget = unassigned.length ? "/unassigned" : waiting.length ? "/requests?status=بانتظار الاستلام" : followUps.length ? "/follow-ups" : "/requests?date=today";
   return (
     <Page title="صباح الخير" subtitle="ابدئي بأهم إجراء، ثم انتقلي للباقي حسب الحاجة" action={<Link className="primary pill" to="/requests/new"><Plus size={18} />تسجيل اتصال / طلب جديد</Link>}>
       <section className="focus-panel">
@@ -591,6 +598,7 @@ function Dashboard({ app }: { app: AppState }) {
       <div className="work-grid">
         <WorkTile to="/contacts-today" icon={<Phone />} count={callsToday} title="اتصالات اليوم" hint="راجعي آخر الاتصالات" tone="green" />
         <WorkTile to="/requests?date=today" icon={<ClipboardList />} count={todayRequests.length} title="طلبات جديدة اليوم" hint="افتحي طلبات اليوم" tone="blue" />
+        <WorkTile to="/unassigned" icon={<AlertTriangle />} count={unassigned.length} title="غير محولة" hint="ما زالت عند السنترال" tone="red" />
         <WorkTile to="/requests?status=بانتظار الاستلام" icon={<Clock />} count={waiting.length} title="بانتظار الاستلام" hint="ابدئي بها أولًا" tone="orange" />
         <WorkTile to="/follow-ups" icon={<Bell />} count={followUps.length} title="تحتاج متابعة" hint="مواعيد وتنبيهات" tone="purple" />
       </div>
@@ -604,6 +612,7 @@ function Dashboard({ app }: { app: AppState }) {
           <div className="shortcut-list">
             <Link className="secondary" to="/requests/new"><Plus size={18} />تسجيل اتصال / طلب جديد</Link>
             <Link className="secondary" to="/customers"><Users size={18} />بحث في العملاء</Link>
+            <Link className="secondary" to="/unassigned"><AlertTriangle size={18} />طلبات غير محولة</Link>
             <Link className="secondary" to="/reports"><FileText size={18} />فتح التقارير</Link>
             <Link className="secondary" to="/notifications"><Bell size={18} />الإشعارات</Link>
           </div>
@@ -947,7 +956,23 @@ function Requests({ app }: { app: AppState }) {
   const location = useLocation();
   const [filters, setFilters] = useState<RequestFilters>(() => filtersFromSearch(location.search));
   const list = applyRequestFilters(app.requests, app.customers, filters);
-  return <Page title="الطلبات الواردة" subtitle="فلترة حسب الاسم، التاريخ، الحالة، النوع، والجهة"><RequestFilterBar filters={filters} setFilters={setFilters} /><Card title={`قائمة الطلبات (${list.length})`}><RequestTable requests={list} customers={app.customers} /></Card></Page>;
+  return <Page title="الطلبات الواردة" subtitle="كل الطلبات المسجلة: غير المحولة، المحولة، المتابعة، والمغلقة"><RequestFilterBar filters={filters} setFilters={setFilters} /><Card title={`قائمة الطلبات (${list.length})`}><RequestTable requests={list} customers={app.customers} /></Card></Page>;
+}
+
+function UnassignedRequests({ app }: { app: AppState }) {
+  const [filters, setFilters] = useState<RequestFilters>(emptyFilters);
+  const list = applyRequestFilters(app.requests.filter(isUnassignedRequest), app.customers, filters);
+  return (
+    <Page title="طلبات غير محولة" subtitle="طلبات محفوظة أو مسودات ما زالت عند السنترال ولم ترسل لقسم" action={<Link className="primary pill" to="/requests/new"><Plus size={18} />تسجيل طلب جديد</Link>}>
+      <section className="warning-box">
+        هذه الطلبات تحتاج قرارًا من السنترال: إما استكمال البيانات، أو اختيار القسم، أو تحويل الطلب.
+      </section>
+      <RequestFilterBar filters={filters} setFilters={setFilters} />
+      <Card title={`طلبات غير محولة (${list.length})`}>
+        {list.length ? <RequestTable requests={list} customers={app.customers} /> : <Empty />}
+      </Card>
+    </Page>
+  );
 }
 
 function RequestDetails({ app }: { app: AppState }) {
