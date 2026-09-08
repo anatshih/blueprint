@@ -47,6 +47,7 @@ password: 123456
 
 - Login
 - Dashboard
+- Review Guide
 - Customers
 - Customer Profile
 - New Customer
@@ -61,6 +62,14 @@ password: 123456
 - Reports
 - Settings
 - Demo Mode
+
+## Management Review Tools
+
+- Floating feedback button on every screen.
+- CSV export for management notes from Settings.
+- Guided test checklist for approval meetings.
+- Unified filters by customer name, phone, request number, date, status, request type, and assigned employee.
+- GitHub Pages-ready static build in `docs/`.
 
 ## Demo Scenarios
 

@@ -5,7 +5,9 @@ import {
   Bell,
   ClipboardList,
   Clock,
+  Download,
   FileText,
+  Filter as FilterIcon,
   Home,
   LogOut,
   Menu,
@@ -16,7 +18,9 @@ import {
   Search,
   Settings,
   ShieldCheck,
+  SlidersHorizontal,
   Sparkles,
+  Star,
   User,
   UserPlus,
   Users,
@@ -80,6 +84,10 @@ type ContactLog = { id: string; customerId: string; requestId?: string; at: stri
 type Complaint = { id: string; customerId: string; requestId?: string; type: string; description: string; priority: Priority; status: string; assigneeId: string };
 type MaintenanceRequest = { id: string; customerId: string; product: string; issue: string; priority: Priority; status: string; assigneeId: string };
 type AppNotification = { id: string; title: string; description: string; at: string; requestId?: string; read: boolean };
+type Feedback = { id: string; screen: string; priority: "اقتراح" | "مهم" | "عاجل"; note: string; at: string };
+type RequestFilters = { query: string; status: string; type: string; assigneeId: string; date: string };
+
+const logoSrc = `${import.meta.env.BASE_URL}alnaseem-logo.png`;
 
 const employees: Employee[] = [
   { id: "sales", name: "نسيم", role: "المبيعات" },
@@ -245,7 +253,9 @@ function App() {
   const [complaints, setComplaints] = useStoredState<Complaint[]>("alnaseem-complaints", initial.complaints);
   const [maintenance, setMaintenance] = useStoredState<MaintenanceRequest[]>("alnaseem-maintenance", initial.maintenance);
   const [notifications, setNotifications] = useStoredState<AppNotification[]>("alnaseem-notifications", initial.notifications);
+  const [feedbacks, setFeedbacks] = useStoredState<Feedback[]>("alnaseem-feedback", []);
   const [toast, setToast] = useState("");
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
   const app = { customers, setCustomers, requests, setRequests, contacts, setContacts, timelines, setTimelines, complaints, setComplaints, maintenance, setMaintenance, notifications, setNotifications, setToast };
 
   const resetData = () => {
@@ -276,6 +286,7 @@ function App() {
           requests: requests.length,
           awaitingAcceptance: requests.filter((r) => r.status === "بانتظار الاستلام").length,
           unreadNotifications: notifications.filter((n) => !n.read).length,
+          feedbacks: feedbacks.length,
         }),
       }, { signal: lifecycle.signal });
       await context.registerTool({
@@ -312,16 +323,18 @@ function App() {
     };
     register().catch(() => undefined);
     return () => lifecycle.abort();
-  }, [customers, notifications, requests, setCustomers]);
+  }, [customers, feedbacks.length, notifications, requests, setCustomers]);
 
   return (
     <HashRouter>
       {toast && <button className="toast" onClick={() => setToast("")}>{toast}</button>}
+      {loggedIn && <FeedbackButton onClick={() => setFeedbackOpen(true)} />}
+      {feedbackOpen && <FeedbackModal onClose={() => setFeedbackOpen(false)} feedbacks={feedbacks} setFeedbacks={setFeedbacks} setToast={setToast} />}
       <Routes>
         <Route path="/login" element={<Login onLogin={() => setLoggedIn(true)} />} />
         <Route
           path="/*"
-          element={loggedIn ? <Shell onLogout={() => setLoggedIn(false)} unread={notifications.filter((n) => !n.read).length} app={app} resetData={resetData} /> : <Navigate to="/login" replace />}
+          element={loggedIn ? <Shell onLogout={() => setLoggedIn(false)} unread={notifications.filter((n) => !n.read).length} app={app} resetData={resetData} feedbacks={feedbacks} /> : <Navigate to="/login" replace />}
         />
       </Routes>
     </HashRouter>
@@ -340,7 +353,7 @@ function Login({ onLogin }: { onLogin: () => void }) {
   return (
     <main className="login-page">
       <form className="login-card" onSubmit={submit}>
-        <img src="./alnaseem-logo.png" alt="alnaseem" />
+        <Logo />
         <h1>نظام السنترال</h1>
         <p>دخول موظفة الاستقبال لتوثيق الاتصالات وتحويل الطلبات.</p>
         <label>اسم المستخدم<input value={username} onChange={(e) => setUsername(e.target.value)} /></label>
@@ -365,9 +378,10 @@ type AppState = ReturnType<typeof App> extends never ? never : {
   setToast: (v: string) => void;
 };
 
-function Shell({ onLogout, unread, app, resetData }: { onLogout: () => void; unread: number; app: AppState; resetData: () => void }) {
+function Shell({ onLogout, unread, app, resetData, feedbacks }: { onLogout: () => void; unread: number; app: AppState; resetData: () => void; feedbacks: Feedback[] }) {
   const items = [
     ["/dashboard", "الرئيسية", Home],
+    ["/guide", "دليل التجربة", Star],
     ["/requests/new", "تسجيل اتصال / طلب جديد", Plus],
     ["/requests", "الطلبات الواردة", ClipboardList],
     ["/transferred", "الطلبات المحولة", RefreshCw],
@@ -382,7 +396,8 @@ function Shell({ onLogout, unread, app, resetData }: { onLogout: () => void; unr
   return (
     <div className="app-shell">
       <aside>
-        <Link className="brand" to="/dashboard"><img src="./alnaseem-logo.png" alt="alnaseem" /></Link>
+        <Link className="brand" to="/dashboard"><Logo compact /></Link>
+        <div className="prototype-mark">نسخة تجريبية للعرض</div>
         <nav>{items.map(([href, label, Icon]) => <Link key={href} to={href}><Icon size={18} />{label}{label === "الإشعارات" && unread > 0 ? <span>{unread}</span> : null}</Link>)}</nav>
         <button className="logout" onClick={onLogout}><LogOut size={18} />تسجيل الخروج</button>
       </aside>
@@ -391,6 +406,7 @@ function Shell({ onLogout, unread, app, resetData }: { onLogout: () => void; unr
         <Routes>
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
           <Route path="/dashboard" element={<Dashboard app={app} />} />
+          <Route path="/guide" element={<Guide app={app} />} />
           <Route path="/customers" element={<Customers app={app} />} />
           <Route path="/customers/new" element={<NewCustomer app={app} />} />
           <Route path="/customers/:id" element={<CustomerProfile app={app} />} />
@@ -403,7 +419,7 @@ function Shell({ onLogout, unread, app, resetData }: { onLogout: () => void; unr
           <Route path="/maintenance" element={<Maintenance app={app} />} />
           <Route path="/notifications" element={<Notifications app={app} />} />
           <Route path="/reports" element={<Reports app={app} />} />
-          <Route path="/settings" element={<SettingsPage resetData={resetData} />} />
+          <Route path="/settings" element={<SettingsPage resetData={resetData} feedbacks={feedbacks} />} />
           <Route path="/demo" element={<Demo app={app} />} />
         </Routes>
       </section>
@@ -415,6 +431,11 @@ function Page({ title, subtitle, action, children }: { title: string; subtitle?:
   return <main className="page"><div className="page-head"><div><h1>{title}</h1>{subtitle && <p>{subtitle}</p>}</div>{action}</div>{children}</main>;
 }
 
+function Logo({ compact = false }: { compact?: boolean }) {
+  const [src, setSrc] = useState(logoSrc);
+  return <img className={compact ? "logo compact-logo" : "logo"} src={src} alt="alnaseem" onError={() => setSrc("/blueprint/alnaseem-logo.png")} />;
+}
+
 function Stat({ icon, label, value, tone }: { icon: ReactNode; label: string; value: number; tone: string }) {
   return <div className={`stat ${tone}`}>{icon}<div><b>{value}</b><span>{label}</span></div></div>;
 }
@@ -422,7 +443,8 @@ function Stat({ icon, label, value, tone }: { icon: ReactNode; label: string; va
 function Dashboard({ app }: { app: AppState }) {
   const due = app.requests.filter((r) => r.followUpAt || ["بانتظار الاستلام", "بانتظار معلومات", "موعد محدد"].includes(r.status)).slice(0, 6);
   return (
-    <Page title="صباح الخير، سارة" subtitle="إليك ملخص عمل السنترال اليوم" action={<Link className="primary pill" to="/requests/new"><Plus size={18} />تسجيل اتصال / طلب جديد</Link>}>
+    <Page title="صباح الخير، سارة" subtitle="إليك ملخص عمل السنترال اليوم" action={<div className="actions"><Link className="secondary pill" to="/guide"><Star size={18} />دليل التجربة</Link><Link className="primary pill" to="/requests/new"><Plus size={18} />تسجيل اتصال / طلب جديد</Link></div>}>
+      <div className="demo-strip"><Sparkles size={18} /><b>جاهز للتجربة أمام الإدارة</b><span>ابدأ من دليل التجربة، ثم جرّب البحث والتحويل والمتابعة وسجّل الملاحظات من الزر العائم.</span></div>
       <div className="stats">
         <Stat icon={<Phone />} label="اتصالات اليوم" value={18} tone="green" />
         <Stat icon={<ClipboardList />} label="طلبات جديدة" value={7} tone="blue" />
@@ -438,6 +460,30 @@ function Dashboard({ app }: { app: AppState }) {
         </Card>
       </div>
       <Card title="آخر الاتصالات"><ContactTable contacts={app.contacts.slice(0, 8)} customers={app.customers} /></Card>
+    </Page>
+  );
+}
+
+function Guide({ app }: { app: AppState }) {
+  const rows = [
+    ["بحث عن عميل موجود", "جرّب أحمد محمد أو شركة النور", `/customers/${app.customers[0]?.id}`],
+    ["إنشاء طلب وتحويله", "اختيار نوع الطلب يقترح الجهة تلقائيًا", "/requests/new"],
+    ["متابعة طلب متأخر", "إرسال تذكير تجريبي وتوثيقه في Timeline", `/requests/${app.requests.find((r) => r.status === "بانتظار الاستلام")?.id}`],
+    ["إضافة اتصال لاحق", "فتح تفاصيل طلب ثم تسجيل نتيجة الاتصال", `/requests/${app.requests[0]?.id}`],
+    ["الشكاوى والصيانة", "مراجعة الحالات المحولة للمتابعة", "/complaints"],
+    ["تصدير الملاحظات", "من الإعدادات بعد أن يضيف الفريق ملاحظاته", "/settings"],
+  ];
+  return (
+    <Page title="دليل التجربة" subtitle="قائمة قصيرة لتسهيل عرض النموذج وأخذ الموافقة">
+      <div className="guide-grid">
+        {rows.map(([title, detail, href], index) => (
+          <Link className="guide-card" to={href} key={title}>
+            <span>{index + 1}</span>
+            <b>{title}</b>
+            <p>{detail}</p>
+          </Link>
+        ))}
+      </div>
     </Page>
   );
 }
@@ -575,9 +621,9 @@ function NewRequest({ app }: { app: AppState }) {
 }
 
 function Requests({ app }: { app: AppState }) {
-  const [status, setStatus] = useState("الكل");
-  const list = status === "الكل" ? app.requests : app.requests.filter((r) => r.status === status);
-  return <Page title="الطلبات الواردة" subtitle="بحث وفلاتر حسب الحالة والمسؤول والنوع"><Filter status={status} setStatus={setStatus} /><Card title="قائمة الطلبات"><RequestTable requests={list} customers={app.customers} /></Card></Page>;
+  const [filters, setFilters] = useState<RequestFilters>(emptyFilters);
+  const list = applyRequestFilters(app.requests, app.customers, filters);
+  return <Page title="الطلبات الواردة" subtitle="فلترة حسب الاسم، التاريخ، الحالة، النوع، والجهة"><RequestFilterBar filters={filters} setFilters={setFilters} /><Card title={`قائمة الطلبات (${list.length})`}><RequestTable requests={list} customers={app.customers} /></Card></Page>;
 }
 
 function RequestDetails({ app }: { app: AppState }) {
@@ -611,11 +657,15 @@ function RequestDetails({ app }: { app: AppState }) {
 }
 
 function Transferred({ app }: { app: AppState }) {
-  return <Page title="الطلبات المحولة" subtitle="متابعة وقت التحويل والاستلام"><Card title="الكل"><RequestTable requests={app.requests.filter((r) => r.transferredAt)} customers={app.customers} /></Card></Page>;
+  const [filters, setFilters] = useState<RequestFilters>({ ...emptyFilters, status: "الكل" });
+  const list = applyRequestFilters(app.requests.filter((r) => r.transferredAt), app.customers, filters);
+  return <Page title="الطلبات المحولة" subtitle="متابعة وقت التحويل والاستلام حسب الجهة"><RequestFilterBar filters={filters} setFilters={setFilters} /><Card title={`النتائج (${list.length})`}><RequestTable requests={list} customers={app.customers} /></Card></Page>;
 }
 
 function FollowUps({ app }: { app: AppState }) {
-  return <Page title="المتابعة" subtitle="اليوم، المتأخرة، وهذا الأسبوع"><Card title="قائمة المتابعات"><RequestTable requests={app.requests.filter((r) => r.followUpAt)} customers={app.customers} /></Card></Page>;
+  const [filters, setFilters] = useState<RequestFilters>(emptyFilters);
+  const list = applyRequestFilters(app.requests.filter((r) => r.followUpAt), app.customers, filters);
+  return <Page title="المتابعة" subtitle="اليوم، المتأخرة، وهذا الأسبوع"><RequestFilterBar filters={filters} setFilters={setFilters} /><Card title={`قائمة المتابعات (${list.length})`}><RequestTable requests={list} customers={app.customers} /></Card></Page>;
 }
 
 function Complaints({ app }: { app: AppState }) {
@@ -639,8 +689,8 @@ function Reports({ app }: { app: AppState }) {
   return <Page title="التقارير التجريبية"><div className="stats"><Stat icon={<Phone />} label="اتصالات اليوم" value={18} tone="green" /><Stat icon={<ClipboardList />} label="الطلبات الجديدة" value={app.requests.length} tone="blue" /><Stat icon={<Clock />} label="بانتظار الاستلام" value={app.requests.filter((r) => r.status === "بانتظار الاستلام").length} tone="orange" /><Stat icon={<MessageSquareWarning />} label="الشكاوى المفتوحة" value={app.complaints.filter((c) => c.status !== "تم الحل").length} tone="purple" /></div><Card title="حسب الجهة">{employees.map((e) => <RecordRow key={e.id} title={employeeName(e.id)} detail={`${app.requests.filter((r) => r.assigneeId === e.id).length} طلب`} badge="تجريبي" />)}</Card></Page>;
 }
 
-function SettingsPage({ resetData }: { resetData: () => void }) {
-  return <Page title="الإعدادات" subtitle="إعدادات محلية للنسخة التجريبية"><Card title="Prototype Settings"><Info rows={[["مدة تأخر الاستلام", "30 دقيقة"], ["Demo Mode", "مفعل"], ["مصدر البيانات", "LocalStorage فقط"]]} /><button className="secondary danger-text" onClick={() => confirm("إعادة بيانات التجربة؟") && resetData()}>إعادة بيانات التجربة</button></Card></Page>;
+function SettingsPage({ resetData, feedbacks }: { resetData: () => void; feedbacks: Feedback[] }) {
+  return <Page title="الإعدادات" subtitle="إعدادات محلية للنسخة التجريبية"><div className="grid two"><Card title="Prototype Settings"><Info rows={[["مدة تأخر الاستلام", "30 دقيقة"], ["Demo Mode", "مفعل"], ["مصدر البيانات", "LocalStorage فقط"]]} /><button className="secondary danger-text" onClick={() => confirm("إعادة بيانات التجربة؟") && resetData()}>إعادة بيانات التجربة</button></Card><Card title="ملاحظات الإدارة"><Info rows={[["عدد الملاحظات", String(feedbacks.length)], ["طريقة الحفظ", "محليًا في المتصفح"], ["الاستخدام", "تصدير ومراجعة بعد العرض"]]} /><button className="primary" onClick={() => exportFeedback(feedbacks)}><Download size={18} />تصدير الملاحظات CSV</button></Card></div></Page>;
 }
 
 function Demo({ app }: { app: AppState }) {
@@ -657,9 +707,36 @@ function Demo({ app }: { app: AppState }) {
   return <Page title="حالات التجربة" subtitle="انتقال مباشر للحالات المهمة أثناء عرض الإدارة"><div className="scenario-grid">{scenarios.map(([label, href]) => <Link className="scenario" to={href} key={label}><Sparkles />{label}</Link>)}</div></Page>;
 }
 
-function Filter({ status, setStatus }: { status: string; setStatus: (v: string) => void }) {
-  const options = ["الكل", "مسودة", "بانتظار الاستلام", "تم الاستلام", "قيد المتابعة", "بانتظار معلومات", "موعد محدد", "مغلق"];
-  return <div className="filter">{options.map((item) => <button className={status === item ? "active" : ""} onClick={() => setStatus(item)} key={item}>{item}</button>)}</div>;
+const emptyFilters: RequestFilters = { query: "", status: "الكل", type: "الكل", assigneeId: "الكل", date: "" };
+
+function RequestFilterBar({ filters, setFilters }: { filters: RequestFilters; setFilters: (v: RequestFilters) => void }) {
+  return (
+    <section className="filter-panel">
+      <div className="filter-title"><SlidersHorizontal size={18} /><b>فلترة النتائج</b></div>
+      <div className="filter-grid">
+        <label><Search size={16} /><input placeholder="اسم العميل أو رقم الطلب أو الهاتف" value={filters.query} onChange={(e) => setFilters({ ...filters, query: e.target.value })} /></label>
+        <label><Clock size={16} /><input type="date" value={filters.date} onChange={(e) => setFilters({ ...filters, date: e.target.value })} /></label>
+        <label><FilterIcon size={16} /><select value={filters.status} onChange={(e) => setFilters({ ...filters, status: e.target.value })}>{["الكل", "مسودة", "بانتظار الاستلام", "تم الاستلام", "قيد المتابعة", "بانتظار معلومات", "موعد محدد", "قيد التنفيذ", "مغلق", "ملغي"].map((item) => <option key={item}>{item}</option>)}</select></label>
+        <label><ClipboardList size={16} /><select value={filters.type} onChange={(e) => setFilters({ ...filters, type: e.target.value })}>{["الكل", ...Object.keys(routeSuggestion)].map((item) => <option key={item}>{item}</option>)}</select></label>
+        <label><Users size={16} /><select value={filters.assigneeId} onChange={(e) => setFilters({ ...filters, assigneeId: e.target.value })}><option>الكل</option>{employees.map((e) => <option value={e.id} key={e.id}>{e.name} — {e.role}</option>)}</select></label>
+        <button className="secondary" onClick={() => setFilters(emptyFilters)}>مسح الفلاتر</button>
+      </div>
+    </section>
+  );
+}
+
+function applyRequestFilters(requests: RequestItem[], customers: Customer[], filters: RequestFilters) {
+  const q = filters.query.trim();
+  return requests.filter((request) => {
+    const customer = customers.find((item) => item.id === request.customerId);
+    const haystack = `${request.number} ${request.type} ${request.description} ${customer?.name ?? ""} ${customer?.phone ?? ""} ${customer?.company ?? ""}`;
+    const dateOk = !filters.date || request.createdAt.slice(0, 10) === filters.date || request.followUpAt?.slice(0, 10) === filters.date || request.transferredAt?.slice(0, 10) === filters.date;
+    return (!q || haystack.includes(q))
+      && (filters.status === "الكل" || request.status === filters.status)
+      && (filters.type === "الكل" || request.type === filters.type)
+      && (filters.assigneeId === "الكل" || request.assigneeId === filters.assigneeId)
+      && dateOk;
+  });
 }
 
 function RequestTable({ requests, customers, compact = false }: { requests: RequestItem[]; customers: Customer[]; compact?: boolean }) {
@@ -686,6 +763,46 @@ function Empty() {
 
 function customerName(customers: Customer[], id: string) {
   return customers.find((c) => c.id === id)?.name ?? "عميل غير معروف";
+}
+
+function FeedbackButton({ onClick }: { onClick: () => void }) {
+  return <button className="feedback-fab" onClick={onClick}><MessageSquareWarning size={18} />إضافة ملاحظة</button>;
+}
+
+function FeedbackModal({ onClose, feedbacks, setFeedbacks, setToast }: { onClose: () => void; feedbacks: Feedback[]; setFeedbacks: (v: Feedback[]) => void; setToast: (v: string) => void }) {
+  const [note, setNote] = useState("");
+  const [screen, setScreen] = useState(location.hash.replace("#/", "") || "dashboard");
+  const [priority, setPriority] = useState<Feedback["priority"]>("اقتراح");
+  const save = () => {
+    if (!note.trim()) return setToast("اكتب الملاحظة أولًا");
+    setFeedbacks([{ id: `fb${Date.now()}`, screen, priority, note, at: new Date().toISOString() }, ...feedbacks]);
+    setToast("تم حفظ الملاحظة");
+    onClose();
+  };
+  return (
+    <div className="modal-backdrop">
+      <section className="modal">
+        <h2>ملاحظة على النموذج</h2>
+        <select value={screen} onChange={(e) => setScreen(e.target.value)}>
+          {["dashboard", "customers", "requests", "request-details", "follow-ups", "complaints", "reports", "settings"].map((item) => <option key={item}>{item}</option>)}
+        </select>
+        <div className="segmented">{(["اقتراح", "مهم", "عاجل"] as Feedback["priority"][]).map((item) => <button type="button" className={priority === item ? "active" : ""} onClick={() => setPriority(item)} key={item}>{item}</button>)}</div>
+        <textarea placeholder="اكتب ملاحظة الإدارة أو المستخدم هنا" value={note} onChange={(e) => setNote(e.target.value)} />
+        <div className="actions"><button className="secondary" onClick={onClose}>إلغاء</button><button className="primary" onClick={save}>حفظ الملاحظة</button></div>
+      </section>
+    </div>
+  );
+}
+
+function exportFeedback(feedbacks: Feedback[]) {
+  const header = "screen,priority,note,at";
+  const rows = feedbacks.map((item) => [item.screen, item.priority, item.note, item.at].map((value) => `"${value.replaceAll('"', '""')}"`).join(","));
+  const blob = new Blob([[header, ...rows].join("\n")], { type: "text/csv;charset=utf-8" });
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(blob);
+  link.download = "alnaseem-feedback.csv";
+  link.click();
+  URL.revokeObjectURL(link.href);
 }
 
 export default App;
