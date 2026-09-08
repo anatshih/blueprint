@@ -43,33 +43,33 @@ username: central
 password: 123456
 ```
 
-## Main Screens
+## الشاشات الرئيسية
 
 - Login
-- Dashboard
-- Review Guide
-- Customers
-- Customer Profile
-- New Customer
-- Incoming Requests
-- New Request / Contact
-- Request Details
-- Transferred Requests
-- Follow Ups
-- Complaints
-- Maintenance
-- Notifications
-- Reports
-- Settings
-- Demo Mode
+- الرئيسية
+- دليل التجربة
+- العملاء
+- ملف العميل
+- إنشاء عميل
+- الطلبات الواردة
+- تسجيل اتصال / طلب جديد
+- تفاصيل الطلب
+- الطلبات المحولة
+- المتابعة
+- الشكاوى
+- الصيانة
+- الإشعارات
+- التقارير
+- الإعدادات
+- حالات التجربة
 
-## Management Review Tools
+## أدوات مراجعة الإدارة
 
-- Floating feedback button on every screen.
-- CSV export for management notes from Settings.
-- Guided test checklist for approval meetings.
-- Unified filters by customer name, phone, request number, date, status, request type, and assigned employee.
-- GitHub Pages-ready static build in `docs/`.
+- زر ملاحظات عائم في كل شاشة.
+- تصدير ملاحظات الإدارة من صفحة الإعدادات.
+- دليل تجربة مختصر لاجتماعات الموافقة.
+- فلاتر موحدة حسب اسم العميل، الهاتف، رقم الطلب، التاريخ، الحالة، نوع الطلب، والموظف المسؤول.
+- نسخة جاهزة للنشر على GitHub Pages داخل `docs/`.
 
 ## Demo Scenarios
 

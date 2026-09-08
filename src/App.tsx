@@ -88,6 +88,18 @@ type Feedback = { id: string; screen: string; priority: "اقتراح" | "مهم
 type RequestFilters = { query: string; status: string; type: string; assigneeId: string; date: string };
 
 const logoSrc = `${import.meta.env.BASE_URL}alnaseem-logo.png`;
+const feedbackScreens = ["الرئيسية", "دليل التجربة", "العملاء", "الطلبات", "تفاصيل الطلب", "المتابعة", "الشكاوى والصيانة", "التقارير", "الإعدادات"] as const;
+const feedbackScreenLabels: Record<string, string> = {
+  dashboard: "الرئيسية",
+  guide: "دليل التجربة",
+  customers: "العملاء",
+  requests: "الطلبات",
+  "request-details": "تفاصيل الطلب",
+  "follow-ups": "المتابعة",
+  complaints: "الشكاوى والصيانة",
+  reports: "التقارير",
+  settings: "الإعدادات",
+};
 
 const employees: Employee[] = [
   { id: "sales", name: "نسيم", role: "المبيعات" },
@@ -690,7 +702,7 @@ function Reports({ app }: { app: AppState }) {
 }
 
 function SettingsPage({ resetData, feedbacks }: { resetData: () => void; feedbacks: Feedback[] }) {
-  return <Page title="الإعدادات" subtitle="إعدادات محلية للنسخة التجريبية"><div className="grid two"><Card title="Prototype Settings"><Info rows={[["مدة تأخر الاستلام", "30 دقيقة"], ["Demo Mode", "مفعل"], ["مصدر البيانات", "LocalStorage فقط"]]} /><button className="secondary danger-text" onClick={() => confirm("إعادة بيانات التجربة؟") && resetData()}>إعادة بيانات التجربة</button></Card><Card title="ملاحظات الإدارة"><Info rows={[["عدد الملاحظات", String(feedbacks.length)], ["طريقة الحفظ", "محليًا في المتصفح"], ["الاستخدام", "تصدير ومراجعة بعد العرض"]]} /><button className="primary" onClick={() => exportFeedback(feedbacks)}><Download size={18} />تصدير الملاحظات CSV</button></Card></div></Page>;
+  return <Page title="الإعدادات" subtitle="إعدادات محلية للنسخة التجريبية"><div className="grid two"><Card title="إعدادات النسخة التجريبية"><Info rows={[["مدة تأخر الاستلام", "30 دقيقة"], ["وضع التجربة", "مفعل"], ["مصدر البيانات", "تخزين محلي في المتصفح فقط"]]} /><button className="secondary danger-text" onClick={() => confirm("إعادة بيانات التجربة؟") && resetData()}>إعادة بيانات التجربة</button></Card><Card title="ملاحظات الإدارة"><Info rows={[["عدد الملاحظات", String(feedbacks.length)], ["طريقة الحفظ", "محليًا في المتصفح"], ["الاستخدام", "تصدير ومراجعة بعد العرض"]]} /><button className="primary" onClick={() => exportFeedback(feedbacks)}><Download size={18} />تصدير الملاحظات</button></Card></div></Page>;
 }
 
 function Demo({ app }: { app: AppState }) {
@@ -771,7 +783,7 @@ function FeedbackButton({ onClick }: { onClick: () => void }) {
 
 function FeedbackModal({ onClose, feedbacks, setFeedbacks, setToast }: { onClose: () => void; feedbacks: Feedback[]; setFeedbacks: (v: Feedback[]) => void; setToast: (v: string) => void }) {
   const [note, setNote] = useState("");
-  const [screen, setScreen] = useState(location.hash.replace("#/", "") || "dashboard");
+  const [screen, setScreen] = useState(feedbackScreenLabels[location.hash.replace("#/", "").split("/")[0]] ?? "الرئيسية");
   const [priority, setPriority] = useState<Feedback["priority"]>("اقتراح");
   const save = () => {
     if (!note.trim()) return setToast("اكتب الملاحظة أولًا");
@@ -784,7 +796,7 @@ function FeedbackModal({ onClose, feedbacks, setFeedbacks, setToast }: { onClose
       <section className="modal">
         <h2>ملاحظة على النموذج</h2>
         <select value={screen} onChange={(e) => setScreen(e.target.value)}>
-          {["dashboard", "customers", "requests", "request-details", "follow-ups", "complaints", "reports", "settings"].map((item) => <option key={item}>{item}</option>)}
+          {feedbackScreens.map((item) => <option key={item}>{item}</option>)}
         </select>
         <div className="segmented">{(["اقتراح", "مهم", "عاجل"] as Feedback["priority"][]).map((item) => <button type="button" className={priority === item ? "active" : ""} onClick={() => setPriority(item)} key={item}>{item}</button>)}</div>
         <textarea placeholder="اكتب ملاحظة الإدارة أو المستخدم هنا" value={note} onChange={(e) => setNote(e.target.value)} />
@@ -795,12 +807,12 @@ function FeedbackModal({ onClose, feedbacks, setFeedbacks, setToast }: { onClose
 }
 
 function exportFeedback(feedbacks: Feedback[]) {
-  const header = "screen,priority,note,at";
-  const rows = feedbacks.map((item) => [item.screen, item.priority, item.note, item.at].map((value) => `"${value.replaceAll('"', '""')}"`).join(","));
+  const header = "الشاشة,الأهمية,الملاحظة,وقت التسجيل";
+  const rows = feedbacks.map((item) => [feedbackScreenLabels[item.screen] ?? item.screen, item.priority, item.note, formatTime(item.at)].map((value) => `"${value.replaceAll('"', '""')}"`).join(","));
   const blob = new Blob([[header, ...rows].join("\n")], { type: "text/csv;charset=utf-8" });
   const link = document.createElement("a");
   link.href = URL.createObjectURL(blob);
-  link.download = "alnaseem-feedback.csv";
+  link.download = "ملاحظات-إدارة-النسيم.csv";
   link.click();
   URL.revokeObjectURL(link.href);
 }
