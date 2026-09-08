@@ -731,8 +731,13 @@ function CustomerProfile({ app }: { app: AppState }) {
 
 type JourneyStep = { department: string; label: string };
 
+function assignedDepartment(request: RequestItem) {
+  return employeeName(normalizeAssigneeId(request.assigneeId || routeSuggestion[request.type]));
+}
+
 function journeyStepsFor(request: RequestItem): JourneyStep[] {
   const close = { department: "إغلاق الطلب", label: "انتهاء المعالجة" };
+  const assigned = assignedDepartment(request);
   const paths: Record<RequestType, JourneyStep[]> = {
     "مشروع / زيارة موقع": [
       { department: "قسم السنترال", label: "استقبال الطلب" },
@@ -744,14 +749,15 @@ function journeyStepsFor(request: RequestItem): JourneyStep[] {
     ],
     "طلب بيع": [
       { department: "قسم السنترال", label: "استقبال الطلب" },
-      { department: "قسم المبيعات", label: "التواصل والعرض" },
+      { department: assigned === "قسم المبيعات" ? "قسم المبيعات" : assigned, label: "استلام الطلب والرد الأولي" },
       { department: "قسم التنسيق الفني", label: "تأكيد التفاصيل عند الحاجة" },
       { department: "قسم الإنتاج", label: "تجهيز الطلب" },
+      { department: "قسم علاقات الزبائن", label: "تأكيد التسليم والمتابعة" },
       close,
     ],
     استفسار: [
       { department: "قسم السنترال", label: "استقبال الاستفسار" },
-      { department: "قسم علاقات الزبائن", label: "الرد والمتابعة" },
+      { department: assigned, label: "الرد والمتابعة" },
       close,
     ],
     صيانة: [
@@ -770,17 +776,17 @@ function journeyStepsFor(request: RequestItem): JourneyStep[] {
     ],
     متابعة: [
       { department: "قسم السنترال", label: "تسجيل المتابعة" },
-      { department: "قسم علاقات الزبائن", label: "متابعة العميل" },
+      { department: assigned, label: "متابعة العميل أو القسم" },
       close,
     ],
     "طلب داخلي": [
       { department: "قسم السنترال", label: "استقبال الطلب" },
-      { department: "قسم شؤون الموظفين", label: "المعالجة الداخلية" },
+      { department: assigned, label: "المعالجة الداخلية" },
       close,
     ],
     أخرى: [
       { department: "قسم السنترال", label: "استقبال الطلب" },
-      { department: employeeName(request.assigneeId), label: "المعالجة حسب التصنيف" },
+      { department: assigned, label: "المعالجة حسب التصنيف" },
       close,
     ],
   };
@@ -809,6 +815,12 @@ function stageTime(request: RequestItem, index: number, timelines: TimelineEvent
   if (index === 3) return request.acceptedAt || request.transferredAt || request.createdAt;
   const related = timelines.filter((event) => event.requestId === request.id).sort((a, b) => +new Date(b.at) - +new Date(a.at));
   return related[0]?.at || request.acceptedAt || request.transferredAt || request.createdAt;
+}
+
+function stepState(index: number, currentIndex: number) {
+  if (index < currentIndex) return "تمت";
+  if (index === currentIndex) return "الحالية";
+  return "قادمة";
 }
 
 function CustomerJourney({
@@ -851,25 +863,32 @@ function CustomerJourney({
     <section className="journey-card">
       <div className="journey-head">
         <div>
+          <span>سلسلة المعالجة حسب القسم</span>
           <h2>أين وصل طلب العميل؟</h2>
-          <p>الطلب #{request.number} · {request.type} · المرحلة الحالية: {steps[currentIndex].department}</p>
+          <p>الطلب #{request.number} · {request.type} · المسؤول الحالي: {assignedDepartment(request)}</p>
         </div>
         <div className="actions">
-          <select value={selectedRequestId} onChange={(event) => setSelectedRequestId(event.target.value)}>
-            {requests.map((item) => <option value={item.id} key={item.id}>طلب #{item.number} · {item.status}</option>)}
-          </select>
+          {requests.length > 1 && (
+            <select value={selectedRequestId} onChange={(event) => setSelectedRequestId(event.target.value)}>
+              {requests.map((item) => <option value={item.id} key={item.id}>طلب #{item.number} · {item.status}</option>)}
+            </select>
+          )}
           <button className="secondary" onClick={() => setOpen(!open)}>أين وصل؟</button>
         </div>
       </div>
       <div className="journey-steps">
-        {steps.map((step, index) => (
-          <button key={`${step.department}-${index}`} className={index <= currentIndex ? "done" : ""} onClick={() => setOpen(true)}>
+        {steps.map((step, index) => {
+          const state = stepState(index, currentIndex);
+          return (
+          <button key={`${step.department}-${index}`} className={`journey-step ${index < currentIndex ? "done" : ""} ${index === currentIndex ? "current" : ""}`} onClick={() => setOpen(true)}>
             <span>{index + 1}</span>
             <b>{step.department}</b>
             <em>{step.label}</em>
+            <strong>{state}</strong>
             <small>{index <= currentIndex ? formatTime(stageTime(request, index, timelines)) : "لم يصل بعد"}</small>
           </button>
-        ))}
+          );
+        })}
       </div>
       {open && (
         <div className="journey-detail">
@@ -1006,6 +1025,17 @@ function RequestDetails({ app }: { app: AppState }) {
   return (
     <Page title={`طلب رقم #${request.number}`} subtitle={`${customer.name} · ${request.type}`} action={<Badge tone={statusClass(request.status)}>{request.status}</Badge>}>
       {unassigned && <UnassignedRequestActions app={app} request={request} customer={customer} />}
+      <CustomerJourney
+        request={request}
+        requests={[request]}
+        timelines={app.timelines}
+        setTimelines={app.setTimelines}
+        setRequests={app.setRequests}
+        allRequests={app.requests}
+        selectedRequestId={request.id}
+        setSelectedRequestId={() => undefined}
+        setToast={app.setToast}
+      />
       <div className="grid two">
         <Card title="بيانات الطلب"><Info rows={[["العميل", customer.name], ["الهاتف", customer.phone], ["المسؤول الحالي", employeeName(request.assigneeId)], ["الأولوية", request.priority], ["تاريخ التسجيل", formatTime(request.createdAt)], ["موعد المتابعة", formatTime(request.followUpAt)], ["الوصف", request.description]]} /></Card>
         <Card title="إجراءات السنترال">
