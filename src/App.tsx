@@ -340,7 +340,7 @@ function Login({ onLogin }: { onLogin: () => void }) {
   return (
     <main className="login-page">
       <form className="login-card" onSubmit={submit}>
-        <img src="/alnaseem-logo.png" alt="alnaseem" />
+        <img src="./alnaseem-logo.png" alt="alnaseem" />
         <h1>نظام السنترال</h1>
         <p>دخول موظفة الاستقبال لتوثيق الاتصالات وتحويل الطلبات.</p>
         <label>اسم المستخدم<input value={username} onChange={(e) => setUsername(e.target.value)} /></label>
@@ -382,7 +382,7 @@ function Shell({ onLogout, unread, app, resetData }: { onLogout: () => void; unr
   return (
     <div className="app-shell">
       <aside>
-        <Link className="brand" to="/dashboard"><img src="/alnaseem-logo.png" alt="alnaseem" /></Link>
+        <Link className="brand" to="/dashboard"><img src="./alnaseem-logo.png" alt="alnaseem" /></Link>
         <nav>{items.map(([href, label, Icon]) => <Link key={href} to={href}><Icon size={18} />{label}{label === "الإشعارات" && unread > 0 ? <span>{unread}</span> : null}</Link>)}</nav>
         <button className="logout" onClick={onLogout}><LogOut size={18} />تسجيل الخروج</button>
       </aside>
