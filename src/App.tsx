@@ -5,7 +5,6 @@ import {
   Bell,
   ClipboardList,
   Clock,
-  Download,
   FileText,
   Filter as FilterIcon,
   Home,
@@ -83,28 +82,17 @@ type ContactLog = { id: string; customerId: string; requestId?: string; at: stri
 type Complaint = { id: string; customerId: string; requestId?: string; type: string; description: string; priority: Priority; status: string; assigneeId: string };
 type MaintenanceRequest = { id: string; customerId: string; product: string; issue: string; priority: Priority; status: string; assigneeId: string };
 type AppNotification = { id: string; title: string; description: string; at: string; requestId?: string; read: boolean };
-type Feedback = { id: string; screen: string; priority: "اقتراح" | "مهم" | "عاجل"; note: string; at: string };
 type RequestFilters = { query: string; status: string; type: string; assigneeId: string; dateFrom: string; dateTo: string };
 type ReportFilters = RequestFilters & { customerId: string };
 
 const logoSrc = `${import.meta.env.BASE_URL}alnaseem-logo.png`;
-const feedbackScreens = ["الرئيسية", "العملاء", "الطلبات", "تفاصيل الطلب", "المتابعة", "الشكاوى والصيانة", "التقارير", "الإعدادات"] as const;
-const feedbackScreenLabels: Record<string, string> = {
-  dashboard: "الرئيسية",
-  customers: "العملاء",
-  requests: "الطلبات",
-  "request-details": "تفاصيل الطلب",
-  "follow-ups": "المتابعة",
-  complaints: "الشكاوى والصيانة",
-  reports: "التقارير",
-  settings: "الإعدادات",
-};
 
 const employees: Employee[] = [
   { id: "sales", role: "قسم المبيعات" },
   { id: "projects", role: "قسم المشاريع" },
   { id: "relations", role: "قسم علاقات الزبائن" },
-  { id: "install", role: "قسم الإنتاج والتركيب" },
+  { id: "production", role: "قسم الإنتاج" },
+  { id: "installation", role: "قسم التركيب" },
   { id: "factory", role: "قسم المصنع" },
   { id: "technical", role: "قسم التنسيق الفني" },
   { id: "hr", role: "قسم شؤون الموظفين" },
@@ -114,7 +102,7 @@ const routeSuggestion: Record<RequestType, string> = {
   "طلب بيع": "sales",
   "مشروع / زيارة موقع": "projects",
   استفسار: "relations",
-  صيانة: "install",
+  صيانة: "installation",
   شكوى: "relations",
   متابعة: "relations",
   "طلب داخلي": "hr",
@@ -207,7 +195,7 @@ function seedData() {
     issue: "مشكلة في الإغلاق تحتاج فحصًا.",
     priority: i === 2 ? "عاجل" : "عادية" as Priority,
     status: i === 3 ? "مكتملة" : "محولة",
-    assigneeId: "install",
+    assigneeId: "installation",
   }));
   const notifications: AppNotification[] = Array.from({ length: 15 }, (_, i) => ({
     id: `n${i + 1}`,
@@ -221,8 +209,24 @@ function seedData() {
 }
 
 function employeeName(id: string) {
+  if (id === "install") return "قسم التركيب";
   const employee = employees.find((item) => item.id === id);
   return employee ? employee.role : "غير محدد";
+}
+
+function normalizeAssigneeId(id: string) {
+  return id === "install" ? "installation" : id;
+}
+
+function displayDepartmentText(value: string) {
+  return value
+    .replaceAll("سارة — السنترال", "قسم السنترال")
+    .replaceAll("سارة", "قسم السنترال")
+    .replaceAll("كريم", "قسم المشاريع")
+    .replaceAll("فهد", "قسم علاقات الزبائن")
+    .replaceAll("وسام", "قسم التركيب")
+    .replaceAll("نسيم", "قسم المبيعات")
+    .replaceAll("الإنتاج والتركيب", "التركيب");
 }
 
 function useStoredState<T>(key: string, fallback: T) {
@@ -264,9 +268,7 @@ function App() {
   const [complaints, setComplaints] = useStoredState<Complaint[]>("alnaseem-complaints", initial.complaints);
   const [maintenance, setMaintenance] = useStoredState<MaintenanceRequest[]>("alnaseem-maintenance", initial.maintenance);
   const [notifications, setNotifications] = useStoredState<AppNotification[]>("alnaseem-notifications", initial.notifications);
-  const [feedbacks, setFeedbacks] = useStoredState<Feedback[]>("alnaseem-feedback", []);
   const [toast, setToast] = useState("");
-  const [feedbackOpen, setFeedbackOpen] = useState(false);
   const app = { customers, setCustomers, requests, setRequests, contacts, setContacts, timelines, setTimelines, complaints, setComplaints, maintenance, setMaintenance, notifications, setNotifications, setToast };
 
   const resetData = () => {
@@ -297,7 +299,6 @@ function App() {
           requests: requests.length,
           awaitingAcceptance: requests.filter((r) => r.status === "بانتظار الاستلام").length,
           unreadNotifications: notifications.filter((n) => !n.read).length,
-          feedbacks: feedbacks.length,
         }),
       }, { signal: lifecycle.signal });
       await context.registerTool({
@@ -334,18 +335,16 @@ function App() {
     };
     register().catch(() => undefined);
     return () => lifecycle.abort();
-  }, [customers, feedbacks.length, notifications, requests, setCustomers]);
+  }, [customers, notifications, requests, setCustomers]);
 
   return (
     <HashRouter>
       {toast && <button className="toast" onClick={() => setToast("")}>{toast}</button>}
-      {loggedIn && <FeedbackButton onClick={() => setFeedbackOpen(true)} />}
-      {feedbackOpen && <FeedbackModal onClose={() => setFeedbackOpen(false)} feedbacks={feedbacks} setFeedbacks={setFeedbacks} setToast={setToast} />}
       <Routes>
         <Route path="/login" element={<Login onLogin={() => setLoggedIn(true)} />} />
         <Route
           path="/*"
-          element={loggedIn ? <Shell onLogout={() => setLoggedIn(false)} unread={notifications.filter((n) => !n.read).length} app={app} resetData={resetData} feedbacks={feedbacks} /> : <Navigate to="/login" replace />}
+          element={loggedIn ? <Shell onLogout={() => setLoggedIn(false)} unread={notifications.filter((n) => !n.read).length} app={app} resetData={resetData} /> : <Navigate to="/login" replace />}
         />
       </Routes>
     </HashRouter>
@@ -389,7 +388,7 @@ type AppState = ReturnType<typeof App> extends never ? never : {
   setToast: (v: string) => void;
 };
 
-function Shell({ onLogout, unread, app, resetData, feedbacks }: { onLogout: () => void; unread: number; app: AppState; resetData: () => void; feedbacks: Feedback[] }) {
+function Shell({ onLogout, unread, app, resetData }: { onLogout: () => void; unread: number; app: AppState; resetData: () => void }) {
   const items = [
     ["/dashboard", "الرئيسية", Home],
     ["/requests/new", "تسجيل اتصال / طلب جديد", Plus],
@@ -426,7 +425,7 @@ function Shell({ onLogout, unread, app, resetData, feedbacks }: { onLogout: () =
           <Route path="/maintenance" element={<Maintenance app={app} />} />
           <Route path="/notifications" element={<Notifications app={app} />} />
           <Route path="/reports" element={<Reports app={app} />} />
-          <Route path="/settings" element={<SettingsPage resetData={resetData} feedbacks={feedbacks} />} />
+          <Route path="/settings" element={<SettingsPage resetData={resetData} />} />
         </Routes>
       </section>
     </div>
@@ -562,14 +561,76 @@ function CustomerProfile({ app }: { app: AppState }) {
   );
 }
 
-const journeySteps = ["تم التسجيل", "تم التحويل", "بانتظار الاستلام", "تم الاستلام", "قيد العمل", "الإغلاق"];
+type JourneyStep = { department: string; label: string };
 
-function journeyIndex(request: RequestItem) {
-  if (["مغلق", "ملغي", "مكتمل"].includes(request.status)) return 5;
-  if (["قيد التنفيذ", "قيد المعالجة", "قيد المتابعة", "موعد محدد", "بانتظار معلومات", "مشكلة", "مؤجل"].includes(request.status)) return 4;
-  if (request.acceptedAt || request.status === "تم الاستلام") return 3;
-  if (request.status === "بانتظار الاستلام") return 2;
-  if (request.transferredAt) return 1;
+function journeyStepsFor(request: RequestItem): JourneyStep[] {
+  const close = { department: "إغلاق الطلب", label: "انتهاء المعالجة" };
+  const paths: Record<RequestType, JourneyStep[]> = {
+    "مشروع / زيارة موقع": [
+      { department: "قسم السنترال", label: "استقبال الطلب" },
+      { department: "قسم المشاريع", label: "المعاينة والتنسيق" },
+      { department: "قسم التنسيق الفني", label: "تجهيز المتطلبات الفنية" },
+      { department: "قسم الإنتاج", label: "تجهيز التصنيع" },
+      { department: "قسم التركيب", label: "التركيب والمتابعة" },
+      close,
+    ],
+    "طلب بيع": [
+      { department: "قسم السنترال", label: "استقبال الطلب" },
+      { department: "قسم المبيعات", label: "التواصل والعرض" },
+      { department: "قسم التنسيق الفني", label: "تأكيد التفاصيل عند الحاجة" },
+      { department: "قسم الإنتاج", label: "تجهيز الطلب" },
+      close,
+    ],
+    استفسار: [
+      { department: "قسم السنترال", label: "استقبال الاستفسار" },
+      { department: "قسم علاقات الزبائن", label: "الرد والمتابعة" },
+      close,
+    ],
+    صيانة: [
+      { department: "قسم السنترال", label: "استقبال بلاغ الصيانة" },
+      { department: "قسم التركيب", label: "فحص الموقع" },
+      { department: "قسم الإنتاج", label: "تجهيز القطع عند الحاجة" },
+      { department: "قسم التركيب", label: "تنفيذ الصيانة" },
+      close,
+    ],
+    شكوى: [
+      { department: "قسم السنترال", label: "استقبال الشكوى" },
+      { department: "قسم علاقات الزبائن", label: "تصنيف الشكوى" },
+      { department: complaintDepartment(request), label: "معالجة السبب" },
+      { department: "قسم علاقات الزبائن", label: "تأكيد الحل مع العميل" },
+      close,
+    ],
+    متابعة: [
+      { department: "قسم السنترال", label: "تسجيل المتابعة" },
+      { department: "قسم علاقات الزبائن", label: "متابعة العميل" },
+      close,
+    ],
+    "طلب داخلي": [
+      { department: "قسم السنترال", label: "استقبال الطلب" },
+      { department: "قسم شؤون الموظفين", label: "المعالجة الداخلية" },
+      close,
+    ],
+    أخرى: [
+      { department: "قسم السنترال", label: "استقبال الطلب" },
+      { department: employeeName(request.assigneeId), label: "المعالجة حسب التصنيف" },
+      close,
+    ],
+  };
+  return paths[request.type];
+}
+
+function complaintDepartment(request: RequestItem) {
+  if (request.description.includes("تركيب")) return "قسم التركيب";
+  if (request.description.includes("تصنيع") || request.description.includes("منتج")) return "قسم الإنتاج";
+  return employeeName(request.assigneeId);
+}
+
+function journeyIndex(request: RequestItem, steps: JourneyStep[]) {
+  if (["مغلق", "ملغي", "مكتمل"].includes(request.status)) return steps.length - 1;
+  if (["قيد التنفيذ", "قيد المعالجة", "قيد المتابعة", "موعد محدد", "بانتظار معلومات", "مشكلة", "مؤجل"].includes(request.status)) return Math.min(steps.length - 2, Math.max(2, steps.length - 3));
+  if (request.acceptedAt || request.status === "تم الاستلام") return Math.min(2, steps.length - 2);
+  if (request.status === "بانتظار الاستلام") return Math.min(1, steps.length - 2);
+  if (request.transferredAt) return Math.min(1, steps.length - 2);
   return 0;
 }
 
@@ -605,14 +666,15 @@ function CustomerJourney({
 }) {
   const [open, setOpen] = useState(false);
   const [note, setNote] = useState("");
-  const currentIndex = journeyIndex(request);
+  const steps = journeyStepsFor(request);
+  const currentIndex = journeyIndex(request, steps);
   const events = timelines.filter((event) => event.requestId === request.id).slice(0, 5);
   const saveNote = (kind: "تذكير" | "ملاحظة") => {
     if (!note.trim()) return setToast("اكتب التذكير أو الملاحظة أولًا");
     const at = new Date().toISOString();
     const updatedRequests = allRequests.map((item) => item.id === request.id ? { ...item, internalNotes: `${item.internalNotes ? `${item.internalNotes}\n` : ""}${kind}: ${note}` } : item);
     // oxlint-disable-next-line react/purity
-    setTimelines([{ id: `t${Date.now()}`, requestId: request.id, at, actor: "قسم السنترال", action: `${kind} إلى ${employeeName(request.assigneeId)}: ${note}` }, ...timelines]);
+    setTimelines([{ id: `t${Date.now()}`, requestId: request.id, at, actor: "قسم السنترال", action: `${kind} إلى ${steps[currentIndex].department}: ${note}` }, ...timelines]);
     setRequests(updatedRequests);
     setNote("");
     setToast(kind === "تذكير" ? "تم حفظ التذكير في سجل الحركة" : "تم حفظ الملاحظة في سجل الحركة");
@@ -622,7 +684,7 @@ function CustomerJourney({
       <div className="journey-head">
         <div>
           <h2>أين وصل طلب العميل؟</h2>
-          <p>الطلب #{request.number} · {request.type} · {employeeName(request.assigneeId)}</p>
+          <p>الطلب #{request.number} · {request.type} · المرحلة الحالية: {steps[currentIndex].department}</p>
         </div>
         <div className="actions">
           <select value={selectedRequestId} onChange={(event) => setSelectedRequestId(event.target.value)}>
@@ -632,10 +694,11 @@ function CustomerJourney({
         </div>
       </div>
       <div className="journey-steps">
-        {journeySteps.map((step, index) => (
-          <button key={step} className={index <= currentIndex ? "done" : ""} onClick={() => setOpen(true)}>
+        {steps.map((step, index) => (
+          <button key={`${step.department}-${index}`} className={index <= currentIndex ? "done" : ""} onClick={() => setOpen(true)}>
             <span>{index + 1}</span>
-            <b>{step}</b>
+            <b>{step.department}</b>
+            <em>{step.label}</em>
             <small>{index <= currentIndex ? formatTime(stageTime(request, index, timelines)) : "لم يصل بعد"}</small>
           </button>
         ))}
@@ -644,13 +707,14 @@ function CustomerJourney({
         <div className="journey-detail">
           <Info rows={[
             ["الحالة الحالية", request.status],
-            ["القسم الحالي", employeeName(request.assigneeId)],
+            ["القسم الحالي", steps[currentIndex].department],
+            ["طبيعة المرحلة", steps[currentIndex].label],
             ["وقت الوصول الحالي", formatTime(stageTime(request, currentIndex, timelines))],
             ["موعد المتابعة", formatTime(request.followUpAt)],
           ]} />
           <div>
             <h3>آخر حركة</h3>
-            {events.map((event) => <div className="timeline compact" key={event.id}><time>{formatTime(event.at)}</time><div><b>{event.actor}</b><p>{event.action}</p></div></div>)}
+            {events.map((event) => <div className="timeline compact" key={event.id}><time>{formatTime(event.at)}</time><div><b>{displayDepartmentText(event.actor)}</b><p>{displayDepartmentText(event.action)}</p></div></div>)}
           </div>
           <textarea placeholder="اكتب تذكيرًا للقسم أو ملاحظة داخلية على الطلب" value={note} onChange={(event) => setNote(event.target.value)} />
           <div className="actions"><button className="secondary" onClick={() => saveNote("ملاحظة")}>حفظ ملاحظة</button><button className="primary" onClick={() => saveNote("تذكير")}>حفظ تذكير</button></div>
@@ -745,7 +809,7 @@ function RequestDetails({ app }: { app: AppState }) {
         <Card title="بيانات الطلب"><Info rows={[["العميل", customer.name], ["الهاتف", customer.phone], ["المسؤول الحالي", employeeName(request.assigneeId)], ["الأولوية", request.priority], ["تاريخ التسجيل", formatTime(request.createdAt)], ["موعد المتابعة", formatTime(request.followUpAt)], ["الوصف", request.description]]} /></Card>
         <Card title="إجراءات السنترال"><div className="actions"><button className="secondary" onClick={addContact}>إضافة اتصال لاحق</button>{request.status === "بانتظار الاستلام" && <button className="secondary danger-text" onClick={remind}>تذكير المسؤول</button>}</div>{request.status === "بانتظار الاستلام" && <p className="warning-box">هذا الطلب لم يتم استلامه حتى الآن.</p>}</Card>
       </div>
-      <Card title="سجل الحركة">{events.map((event) => <div className="timeline" key={event.id}><time>{formatTime(event.at)}</time><div><b>{event.actor}</b><p>{event.action}</p></div></div>)}</Card>
+      <Card title="سجل الحركة">{events.map((event) => <div className="timeline" key={event.id}><time>{formatTime(event.at)}</time><div><b>{displayDepartmentText(event.actor)}</b><p>{displayDepartmentText(event.action)}</p></div></div>)}</Card>
     </Page>
   );
 }
@@ -771,7 +835,7 @@ function Complaints({ app }: { app: AppState }) {
 }
 
 function Maintenance({ app }: { app: AppState }) {
-  return <Page title="الصيانة" subtitle="تحويل افتراضي إلى قسم الإنتاج والتركيب"><Card title="طلبات الصيانة">{app.maintenance.map((m) => <RecordRow key={m.id} title={`${customerName(app.customers, m.customerId)} · ${m.product}`} detail={m.issue} badge={m.status} />)}</Card></Page>;
+  return <Page title="الصيانة" subtitle="تحويل افتراضي إلى قسم التركيب مع إشراك الإنتاج عند الحاجة"><Card title="طلبات الصيانة">{app.maintenance.map((m) => <RecordRow key={m.id} title={`${customerName(app.customers, m.customerId)} · ${m.product}`} detail={m.issue} badge={m.status} />)}</Card></Page>;
 }
 
 function Notifications({ app }: { app: AppState }) {
@@ -796,7 +860,7 @@ function Reports({ app }: { app: AppState }) {
           <Stat icon={<MessageSquareWarning />} label="شكاوى مفتوحة" value={openComplaints} tone="green" />
         </div>
         <div className="grid two">
-          <Card title="ملخص حسب القسم">{employees.map((employee) => <RecordRow key={employee.id} title={employee.role} detail={`${filtered.filter((request) => request.assigneeId === employee.id).length} طلب`} badge="قسم" />)}</Card>
+          <Card title="ملخص حسب القسم">{employees.map((employee) => <RecordRow key={employee.id} title={employee.role} detail={`${filtered.filter((request) => normalizeAssigneeId(request.assigneeId) === employee.id).length} طلب`} badge="قسم" />)}</Card>
           <Card title="ملخص حسب نوع الطلب">{Object.keys(routeSuggestion).map((type) => <RecordRow key={type} title={type} detail={`${filtered.filter((request) => request.type === type).length} طلب`} badge="نوع" />)}</Card>
         </div>
         <Card title={`نتائج التقرير (${filtered.length})`}><RequestTable requests={filtered} customers={app.customers} /></Card>
@@ -805,8 +869,15 @@ function Reports({ app }: { app: AppState }) {
   );
 }
 
-function SettingsPage({ resetData, feedbacks }: { resetData: () => void; feedbacks: Feedback[] }) {
-  return <Page title="الإعدادات" subtitle="إعدادات محلية للنظام"><div className="grid two"><Card title="إعدادات النظام"><Info rows={[["مدة تأخر الاستلام", "30 دقيقة"], ["مصدر البيانات", "تخزين محلي في المتصفح فقط"]]} /><button className="secondary danger-text" onClick={() => confirm("إعادة البيانات؟") && resetData()}>إعادة البيانات</button></Card><Card title="ملاحظات الإدارة"><Info rows={[["عدد الملاحظات", String(feedbacks.length)], ["طريقة الحفظ", "محليًا في المتصفح"], ["الاستخدام", "تصدير ومراجعة بعد العرض"]]} /><button className="primary" onClick={() => exportFeedback(feedbacks)}><Download size={18} />تصدير الملاحظات</button></Card></div></Page>;
+function SettingsPage({ resetData }: { resetData: () => void }) {
+  return (
+    <Page title="الإعدادات" subtitle="إعدادات محلية للنظام">
+      <Card title="إعدادات النظام">
+        <Info rows={[["مدة تأخر الاستلام", "30 دقيقة"], ["مصدر البيانات", "تخزين محلي في المتصفح فقط"]]} />
+        <button className="secondary danger-text" onClick={() => confirm("إعادة البيانات؟") && resetData()}>إعادة البيانات</button>
+      </Card>
+    </Page>
+  );
 }
 
 const emptyFilters: RequestFilters = { query: "", status: "الكل", type: "الكل", assigneeId: "الكل", dateFrom: "", dateTo: "" };
@@ -856,7 +927,7 @@ function applyRequestFilters(requests: RequestItem[], customers: Customer[], fil
     return (!q || haystack.includes(q))
       && (filters.status === "الكل" || request.status === filters.status)
       && (filters.type === "الكل" || request.type === filters.type)
-      && (filters.assigneeId === "الكل" || request.assigneeId === filters.assigneeId)
+      && (filters.assigneeId === "الكل" || normalizeAssigneeId(request.assigneeId) === filters.assigneeId)
       && dateOk;
   });
 }
@@ -868,7 +939,7 @@ function RequestTable({ requests, customers, compact = false }: { requests: Requ
 }
 
 function ContactTable({ contacts, customers }: { contacts: ContactLog[]; customers: Customer[] }) {
-  return <div className="table-wrap"><table><thead><tr><th>الوقت</th><th>العميل</th><th>نوع الاتصال</th><th>الحالة</th><th>المسؤول</th></tr></thead><tbody>{contacts.map((c) => <tr key={c.id}><td>{formatTime(c.at)}</td><td>{customerName(customers, c.customerId)}</td><td>{c.direction}</td><td>{c.result}</td><td>{c.user}</td></tr>)}</tbody></table></div>;
+  return <div className="table-wrap"><table><thead><tr><th>الوقت</th><th>العميل</th><th>نوع الاتصال</th><th>الحالة</th><th>المسؤول</th></tr></thead><tbody>{contacts.map((c) => <tr key={c.id}><td>{formatTime(c.at)}</td><td>{customerName(customers, c.customerId)}</td><td>{c.direction}</td><td>{c.result}</td><td>{displayDepartmentText(c.user)}</td></tr>)}</tbody></table></div>;
 }
 
 function Info({ rows }: { rows: [string, string][] }) {
@@ -885,46 +956,6 @@ function Empty() {
 
 function customerName(customers: Customer[], id: string) {
   return customers.find((c) => c.id === id)?.name ?? "عميل غير معروف";
-}
-
-function FeedbackButton({ onClick }: { onClick: () => void }) {
-  return <button className="feedback-fab" onClick={onClick}><MessageSquareWarning size={18} />إضافة ملاحظة</button>;
-}
-
-function FeedbackModal({ onClose, feedbacks, setFeedbacks, setToast }: { onClose: () => void; feedbacks: Feedback[]; setFeedbacks: (v: Feedback[]) => void; setToast: (v: string) => void }) {
-  const [note, setNote] = useState("");
-  const [screen, setScreen] = useState(feedbackScreenLabels[location.hash.replace("#/", "").split("/")[0]] ?? "الرئيسية");
-  const [priority, setPriority] = useState<Feedback["priority"]>("اقتراح");
-  const save = () => {
-    if (!note.trim()) return setToast("اكتب الملاحظة أولًا");
-    setFeedbacks([{ id: `fb${Date.now()}`, screen, priority, note, at: new Date().toISOString() }, ...feedbacks]);
-    setToast("تم حفظ الملاحظة");
-    onClose();
-  };
-  return (
-    <div className="modal-backdrop">
-      <section className="modal">
-        <h2>ملاحظة على النموذج</h2>
-        <select value={screen} onChange={(e) => setScreen(e.target.value)}>
-          {feedbackScreens.map((item) => <option key={item}>{item}</option>)}
-        </select>
-        <div className="segmented">{(["اقتراح", "مهم", "عاجل"] as Feedback["priority"][]).map((item) => <button type="button" className={priority === item ? "active" : ""} onClick={() => setPriority(item)} key={item}>{item}</button>)}</div>
-        <textarea placeholder="اكتب ملاحظة الإدارة أو المستخدم هنا" value={note} onChange={(e) => setNote(e.target.value)} />
-        <div className="actions"><button className="secondary" onClick={onClose}>إلغاء</button><button className="primary" onClick={save}>حفظ الملاحظة</button></div>
-      </section>
-    </div>
-  );
-}
-
-function exportFeedback(feedbacks: Feedback[]) {
-  const header = "الشاشة,الأهمية,الملاحظة,وقت التسجيل";
-  const rows = feedbacks.map((item) => [feedbackScreenLabels[item.screen] ?? item.screen, item.priority, item.note, formatTime(item.at)].map((value) => `"${value.replaceAll('"', '""')}"`).join(","));
-  const blob = new Blob([[header, ...rows].join("\n")], { type: "text/csv;charset=utf-8" });
-  const link = document.createElement("a");
-  link.href = URL.createObjectURL(blob);
-  link.download = "ملاحظات-إدارة-النسيم.csv";
-  link.click();
-  URL.revokeObjectURL(link.href);
 }
 
 export default App;
