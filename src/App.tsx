@@ -219,13 +219,25 @@ function normalizeAssigneeId(id: string) {
 }
 
 function displayDepartmentText(value: string) {
+  const exactDepartments: Record<string, string> = {
+    "سارة": "قسم السنترال",
+    "كريم": "قسم المشاريع",
+    "فهد": "قسم علاقات الزبائن",
+    "وسام": "قسم التركيب",
+    "نسيم": "قسم المبيعات",
+  };
+  if (exactDepartments[value.trim()]) return exactDepartments[value.trim()];
   return value
     .replaceAll("سارة — السنترال", "قسم السنترال")
-    .replaceAll("سارة", "قسم السنترال")
-    .replaceAll("كريم", "قسم المشاريع")
-    .replaceAll("فهد", "قسم علاقات الزبائن")
-    .replaceAll("وسام", "قسم التركيب")
-    .replaceAll("نسيم", "قسم المبيعات")
+    .replaceAll("سارة - السنترال", "قسم السنترال")
+    .replaceAll("كريم — المشاريع", "قسم المشاريع")
+    .replaceAll("كريم - المشاريع", "قسم المشاريع")
+    .replaceAll("فهد — علاقات الزبائن", "قسم علاقات الزبائن")
+    .replaceAll("فهد - علاقات الزبائن", "قسم علاقات الزبائن")
+    .replaceAll("وسام — التركيب", "قسم التركيب")
+    .replaceAll("وسام - التركيب", "قسم التركيب")
+    .replaceAll("نسيم — المبيعات", "قسم المبيعات")
+    .replaceAll("نسيم - المبيعات", "قسم المبيعات")
     .replaceAll("الإنتاج والتركيب", "التركيب");
 }
 
