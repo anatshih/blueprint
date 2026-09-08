@@ -1068,46 +1068,67 @@ function UnassignedRequestActions({ app, request, customer }: { app: AppState; r
   };
   return (
     <>
-      <section className="decision-panel">
+      <section className="decision-panel simple-decision">
         <div>
           <span>قرار مطلوب</span>
           <h2>هذا الطلب غير محول بعد</h2>
-          <p>راجعي البيانات وعدليها عند الحاجة، ثم احفظي أو حوّلي الطلب لقسم مسؤول.</p>
+          <p>استكملي نوع الطلب، وصف المشكلة، والقسم المسؤول ثم حوّليه.</p>
         </div>
         <div className="decision-actions">
-          <button className="secondary" onClick={completeInfo}><PhoneCall size={16} />استكمال البيانات</button>
-          <button className="secondary" onClick={saveDraft}><ClipboardList size={16} />حفظ التعديلات</button>
           <button className="primary" onClick={transferRequest}><RefreshCw size={16} />تحويل لقسم</button>
-          <button className="secondary danger-text" onClick={closeByCentral}><ShieldCheck size={16} />إغلاق من السنترال</button>
         </div>
       </section>
-      <section className="card edit-request-form">
+      <section className="card edit-request-form simple-request-form">
         <h2>استكمال بيانات الطلب</h2>
-        <label>نوع الطلب / التصنيف<select value={draft.type} onChange={(event) => {
-          const type = event.target.value as RequestType;
-          setDraft({ ...draft, type, assigneeId: routeSuggestion[type] });
-        }}>{Object.keys(routeSuggestion).map((item) => <option key={item}>{item}</option>)}</select></label>
-        <label>القسم المسؤول للتحويل<select value={draft.assigneeId} onChange={(event) => setDraft({ ...draft, assigneeId: event.target.value })}>{employees.map((employee) => <option value={employee.id} key={employee.id}>{employee.role}</option>)}</select></label>
-        <label>الأولوية<select value={draft.priority} onChange={(event) => setDraft({ ...draft, priority: event.target.value as Priority })}>{(["عادي", "مهم", "عاجل"] as Priority[]).map((item) => <option key={item}>{item}</option>)}</select></label>
-        <label>موعد المتابعة<input type="datetime-local" value={draft.followUpAt} onChange={(event) => setDraft({ ...draft, followUpAt: event.target.value })} /></label>
-        {draft.priority === "عاجل" && <label>سبب الاستعجال<input value={draft.urgentReason} onChange={(event) => setDraft({ ...draft, urgentReason: event.target.value })} /></label>}
-        <div className="wide template-chips">
-          <span><Sparkles size={14} /> قوالب وصف سريعة:</span>
-          {descriptionTemplates[draft.type].map((template) => (
-            <button type="button" key={template} className="chip" onClick={() => setDraft({ ...draft, description: template })}>{template.length > 32 ? `${template.slice(0, 32)}…` : template}</button>
-          ))}
+
+        <div className="form-step">
+          <span>1</span>
+          <label>نوع الطلب<select value={draft.type} onChange={(event) => {
+            const type = event.target.value as RequestType;
+            setDraft({ ...draft, type, assigneeId: routeSuggestion[type] });
+          }}>{Object.keys(routeSuggestion).map((item) => <option key={item}>{item}</option>)}</select></label>
         </div>
-        <div className="wide department-picker">
-          <span>اختيار جهة التحويل</span>
-          {employees.map((employee) => (
-            <button type="button" key={employee.id} className={draft.assigneeId === employee.id ? "selected" : ""} onClick={() => setDraft({ ...draft, assigneeId: employee.id })}>
-              <Users size={16} />
-              {employee.role}
-            </button>
-          ))}
+
+        <div className="form-step wide">
+          <span>2</span>
+          <label>وصف المشكلة / الطلب<textarea value={draft.description} onChange={(event) => setDraft({ ...draft, description: event.target.value })} /></label>
+          <div className="template-chips compact-chips">
+            <span><Sparkles size={14} /> قوالب سريعة:</span>
+            {descriptionTemplates[draft.type].map((template) => (
+              <button type="button" key={template} className="chip" onClick={() => setDraft({ ...draft, description: template })}>{template.length > 32 ? `${template.slice(0, 32)}…` : template}</button>
+            ))}
+          </div>
         </div>
-        <label className="wide">وصف المشكلة / الطلب<textarea value={draft.description} onChange={(event) => setDraft({ ...draft, description: event.target.value })} /></label>
-        <label className="wide">ملاحظة داخلية قبل التحويل<textarea value={draft.internalNotes} onChange={(event) => setDraft({ ...draft, internalNotes: event.target.value })} /></label>
+
+        <div className="form-step wide">
+          <span>3</span>
+          <div className="department-picker">
+            <b>القسم المسؤول للتحويل</b>
+            {employees.map((employee) => (
+              <button type="button" key={employee.id} className={draft.assigneeId === employee.id ? "selected" : ""} onClick={() => setDraft({ ...draft, assigneeId: employee.id })}>
+                <Users size={16} />
+                {employee.role}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <details className="wide optional-details">
+          <summary>تفاصيل إضافية</summary>
+          <div className="optional-grid">
+            <label>الأولوية<select value={draft.priority} onChange={(event) => setDraft({ ...draft, priority: event.target.value as Priority })}>{(["عادي", "مهم", "عاجل"] as Priority[]).map((item) => <option key={item}>{item}</option>)}</select></label>
+            <label>موعد المتابعة<input type="datetime-local" value={draft.followUpAt} onChange={(event) => setDraft({ ...draft, followUpAt: event.target.value })} /></label>
+            {draft.priority === "عاجل" && <label>سبب الاستعجال<input value={draft.urgentReason} onChange={(event) => setDraft({ ...draft, urgentReason: event.target.value })} /></label>}
+            <label className="wide">ملاحظة داخلية قبل التحويل<textarea value={draft.internalNotes} onChange={(event) => setDraft({ ...draft, internalNotes: event.target.value })} /></label>
+          </div>
+        </details>
+
+        <div className="wide completion-actions">
+          <button className="secondary" onClick={completeInfo}><PhoneCall size={16} />استكمال من العميل</button>
+          <button className="secondary" onClick={saveDraft}><ClipboardList size={16} />حفظ فقط</button>
+          <button className="primary" onClick={transferRequest}><RefreshCw size={16} />حفظ وتحويل إلى {employeeName(draft.assigneeId)}</button>
+          <button className="secondary danger-text" onClick={closeByCentral}><ShieldCheck size={16} />إغلاق من السنترال</button>
+        </div>
       </section>
     </>
   );
