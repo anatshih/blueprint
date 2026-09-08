@@ -1003,46 +1003,9 @@ function RequestDetails({ app }: { app: AppState }) {
     app.setTimelines([{ id: `t${Date.now()}`, requestId: request.id, at: new Date().toISOString(), actor: "قسم السنترال", action: `تم إرسال تذكير إلى ${employeeName(request.assigneeId)}` }, ...app.timelines]);
     app.setToast("تم إرسال تذكير تجريبي");
   };
-  const completeInfo = () => {
-    const at = new Date().toISOString();
-    // oxlint-disable-next-line react/purity
-    const contact: ContactLog = { id: `cl${Date.now()}`, customerId: customer.id, requestId: request.id, at, direction: "صادر", result: "استكمال بيانات", notes: "تم التواصل مع العميل لاستكمال بيانات الطلب قبل التحويل.", user: "قسم السنترال" };
-    app.setContacts([contact, ...app.contacts]);
-    // oxlint-disable-next-line react/purity
-    app.setTimelines([{ id: `t${Date.now()}`, requestId: request.id, at, actor: "قسم السنترال", action: "استكمال بيانات الطلب قبل التحويل" }, ...app.timelines]);
-    app.setToast("تم تسجيل إجراء استكمال البيانات");
-  };
-  const transferRequest = () => {
-    const at = new Date().toISOString();
-    const nextAssignee = request.assigneeId || routeSuggestion[request.type];
-    app.setRequests(app.requests.map((item) => item.id === request.id ? { ...item, status: "بانتظار الاستلام", assigneeId: nextAssignee, transferredAt: at } : item));
-    // oxlint-disable-next-line react/purity
-    app.setTimelines([{ id: `t${Date.now()}`, requestId: request.id, at, actor: "قسم السنترال", action: `تم تحويل الطلب إلى ${employeeName(nextAssignee)}` }, ...app.timelines]);
-    app.setToast(`تم تحويل الطلب إلى ${employeeName(nextAssignee)}`);
-  };
-  const closeByCentral = () => {
-    const at = new Date().toISOString();
-    app.setRequests(app.requests.map((item) => item.id === request.id ? { ...item, status: "مغلق", internalNotes: `${item.internalNotes ? `${item.internalNotes}\n` : ""}تم إغلاق الطلب من السنترال بعد المعالجة المباشرة.` } : item));
-    // oxlint-disable-next-line react/purity
-    app.setTimelines([{ id: `t${Date.now()}`, requestId: request.id, at, actor: "قسم السنترال", action: "تم إغلاق الطلب من السنترال بعد المعالجة المباشرة" }, ...app.timelines]);
-    app.setToast("تم إغلاق الطلب من السنترال");
-  };
   return (
     <Page title={`طلب رقم #${request.number}`} subtitle={`${customer.name} · ${request.type}`} action={<Badge tone={statusClass(request.status)}>{request.status}</Badge>}>
-      {unassigned && (
-        <section className="decision-panel">
-          <div>
-            <span>قرار مطلوب</span>
-            <h2>هذا الطلب غير محول بعد</h2>
-            <p>اختاري الإجراء المناسب: استكمال البيانات، تحويله لقسم مسؤول، أو إغلاقه إذا تمت المعالجة من السنترال.</p>
-          </div>
-          <div className="decision-actions">
-            <button className="secondary" onClick={completeInfo}><PhoneCall size={16} />استكمال البيانات</button>
-            <button className="primary" onClick={transferRequest}><RefreshCw size={16} />تحويل لقسم</button>
-            <button className="secondary danger-text" onClick={closeByCentral}><ShieldCheck size={16} />إغلاق من السنترال</button>
-          </div>
-        </section>
-      )}
+      {unassigned && <UnassignedRequestActions app={app} request={request} customer={customer} />}
       <div className="grid two">
         <Card title="بيانات الطلب"><Info rows={[["العميل", customer.name], ["الهاتف", customer.phone], ["المسؤول الحالي", employeeName(request.assigneeId)], ["الأولوية", request.priority], ["تاريخ التسجيل", formatTime(request.createdAt)], ["موعد المتابعة", formatTime(request.followUpAt)], ["الوصف", request.description]]} /></Card>
         <Card title="إجراءات السنترال">
@@ -1057,6 +1020,81 @@ function RequestDetails({ app }: { app: AppState }) {
       </div>
       <Card title="سجل الحركة">{events.map((event) => <div className="timeline" key={event.id}><time>{formatTime(event.at)}</time><div><b>{displayDepartmentText(event.actor)}</b><p>{displayDepartmentText(event.action)}</p></div></div>)}</Card>
     </Page>
+  );
+}
+
+function UnassignedRequestActions({ app, request, customer }: { app: AppState; request: RequestItem; customer: Customer }) {
+  const [draft, setDraft] = useState({
+    type: request.type,
+    description: request.description,
+    priority: request.priority,
+    urgentReason: request.urgentReason ?? "",
+    assigneeId: request.assigneeId || routeSuggestion[request.type],
+    followUpAt: request.followUpAt ?? "",
+    internalNotes: request.internalNotes ?? "",
+  });
+  const completeInfo = () => {
+    const at = new Date().toISOString();
+    // oxlint-disable-next-line react/purity
+    const contact: ContactLog = { id: `cl${Date.now()}`, customerId: customer.id, requestId: request.id, at, direction: "صادر", result: "استكمال بيانات", notes: "تم التواصل مع العميل لاستكمال بيانات الطلب قبل التحويل.", user: "قسم السنترال" };
+    app.setContacts([contact, ...app.contacts]);
+    // oxlint-disable-next-line react/purity
+    app.setTimelines([{ id: `t${Date.now()}`, requestId: request.id, at, actor: "قسم السنترال", action: "استكمال بيانات الطلب قبل التحويل" }, ...app.timelines]);
+    app.setToast("تم تسجيل إجراء استكمال البيانات");
+  };
+  const saveDraft = () => {
+    const at = new Date().toISOString();
+    app.setRequests(app.requests.map((item) => item.id === request.id ? { ...item, ...draft } : item));
+    // oxlint-disable-next-line react/purity
+    app.setTimelines([{ id: `t${Date.now()}`, requestId: request.id, at, actor: "قسم السنترال", action: "تم تحديث بيانات الطلب غير المحول" }, ...app.timelines]);
+    app.setToast("تم حفظ تعديلات الطلب");
+  };
+  const transferRequest = () => {
+    if (!draft.description.trim()) return app.setToast("وصف الطلب مطلوب قبل التحويل");
+    if (draft.priority === "عاجل" && !draft.urgentReason.trim()) return app.setToast("سبب الاستعجال مطلوب");
+    const at = new Date().toISOString();
+    const nextAssignee = draft.assigneeId || routeSuggestion[draft.type];
+    app.setRequests(app.requests.map((item) => item.id === request.id ? { ...item, ...draft, status: "بانتظار الاستلام", assigneeId: nextAssignee, transferredAt: at } : item));
+    // oxlint-disable-next-line react/purity
+    app.setTimelines([{ id: `t${Date.now()}`, requestId: request.id, at, actor: "قسم السنترال", action: `تم تحويل الطلب إلى ${employeeName(nextAssignee)}` }, ...app.timelines]);
+    app.setToast(`تم تحويل الطلب إلى ${employeeName(nextAssignee)}`);
+  };
+  const closeByCentral = () => {
+    const at = new Date().toISOString();
+    app.setRequests(app.requests.map((item) => item.id === request.id ? { ...item, status: "مغلق", internalNotes: `${item.internalNotes ? `${item.internalNotes}\n` : ""}تم إغلاق الطلب من السنترال بعد المعالجة المباشرة.` } : item));
+    // oxlint-disable-next-line react/purity
+    app.setTimelines([{ id: `t${Date.now()}`, requestId: request.id, at, actor: "قسم السنترال", action: "تم إغلاق الطلب من السنترال بعد المعالجة المباشرة" }, ...app.timelines]);
+    app.setToast("تم إغلاق الطلب من السنترال");
+  };
+  return (
+    <>
+      <section className="decision-panel">
+        <div>
+          <span>قرار مطلوب</span>
+          <h2>هذا الطلب غير محول بعد</h2>
+          <p>راجعي البيانات وعدليها عند الحاجة، ثم احفظي أو حوّلي الطلب لقسم مسؤول.</p>
+        </div>
+        <div className="decision-actions">
+          <button className="secondary" onClick={completeInfo}><PhoneCall size={16} />استكمال البيانات</button>
+          <button className="secondary" onClick={saveDraft}><ClipboardList size={16} />حفظ التعديلات</button>
+          <button className="primary" onClick={transferRequest}><RefreshCw size={16} />تحويل لقسم</button>
+          <button className="secondary danger-text" onClick={closeByCentral}><ShieldCheck size={16} />إغلاق من السنترال</button>
+        </div>
+      </section>
+      <section className="card edit-request-form">
+        <h2>استكمال بيانات الطلب</h2>
+        <label>نوع الطلب<select value={draft.type} onChange={(event) => {
+          const type = event.target.value as RequestType;
+          setDraft({ ...draft, type, assigneeId: routeSuggestion[type] });
+        }}>{Object.keys(routeSuggestion).map((item) => <option key={item}>{item}</option>)}</select></label>
+        <label>القسم المسؤول<select value={draft.assigneeId} onChange={(event) => setDraft({ ...draft, assigneeId: event.target.value })}>{employees.map((employee) => <option value={employee.id} key={employee.id}>{employee.role}</option>)}</select></label>
+        <label>الأولوية<select value={draft.priority} onChange={(event) => setDraft({ ...draft, priority: event.target.value as Priority })}>{(["عادي", "مهم", "عاجل"] as Priority[]).map((item) => <option key={item}>{item}</option>)}</select></label>
+        <label>موعد المتابعة<input type="datetime-local" value={draft.followUpAt} onChange={(event) => setDraft({ ...draft, followUpAt: event.target.value })} /></label>
+        {draft.priority === "عاجل" && <label>سبب الاستعجال<input value={draft.urgentReason} onChange={(event) => setDraft({ ...draft, urgentReason: event.target.value })} /></label>}
+        <label className="wide">وصف الطلب<textarea value={draft.description} onChange={(event) => setDraft({ ...draft, description: event.target.value })} /></label>
+        <label className="wide">ملاحظات داخلية<textarea value={draft.internalNotes} onChange={(event) => setDraft({ ...draft, internalNotes: event.target.value })} /></label>
+      </section>
+    </>
   );
 }
 
