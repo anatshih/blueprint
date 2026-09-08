@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import type { FormEvent, ReactNode } from "react";
-import { BrowserRouter, Link, Navigate, Route, Routes, useNavigate, useParams } from "react-router-dom";
+import { HashRouter, Link, Navigate, Route, Routes, useNavigate, useParams } from "react-router-dom";
 import {
   Bell,
   ClipboardList,
@@ -315,7 +315,7 @@ function App() {
   }, [customers, notifications, requests, setCustomers]);
 
   return (
-    <BrowserRouter>
+    <HashRouter>
       {toast && <button className="toast" onClick={() => setToast("")}>{toast}</button>}
       <Routes>
         <Route path="/login" element={<Login onLogin={() => setLoggedIn(true)} />} />
@@ -324,7 +324,7 @@ function App() {
           element={loggedIn ? <Shell onLogout={() => setLoggedIn(false)} unread={notifications.filter((n) => !n.read).length} app={app} resetData={resetData} /> : <Navigate to="/login" replace />}
         />
       </Routes>
-    </BrowserRouter>
+    </HashRouter>
   );
 }
 
