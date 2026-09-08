@@ -19,8 +19,7 @@ import {
   Settings,
   ShieldCheck,
   SlidersHorizontal,
-  Sparkles,
-  Star,
+  Printer,
   User,
   UserPlus,
   Users,
@@ -60,7 +59,7 @@ type Status =
 type Priority = "عادي" | "مهم" | "عاجل";
 type RequestType = "طلب بيع" | "مشروع / زيارة موقع" | "استفسار" | "صيانة" | "شكوى" | "متابعة" | "طلب داخلي" | "أخرى";
 
-type Employee = { id: string; name: string; role: string };
+type Employee = { id: string; role: string };
 type Customer = { id: string; name: string; phone: string; altPhone?: string; company?: string; city: string; address?: string; email?: string; notes?: string; createdAt: string };
 type TimelineEvent = { id: string; requestId: string; at: string; actor: string; action: string };
 type RequestItem = {
@@ -85,13 +84,13 @@ type Complaint = { id: string; customerId: string; requestId?: string; type: str
 type MaintenanceRequest = { id: string; customerId: string; product: string; issue: string; priority: Priority; status: string; assigneeId: string };
 type AppNotification = { id: string; title: string; description: string; at: string; requestId?: string; read: boolean };
 type Feedback = { id: string; screen: string; priority: "اقتراح" | "مهم" | "عاجل"; note: string; at: string };
-type RequestFilters = { query: string; status: string; type: string; assigneeId: string; date: string };
+type RequestFilters = { query: string; status: string; type: string; assigneeId: string; dateFrom: string; dateTo: string };
+type ReportFilters = RequestFilters & { customerId: string };
 
 const logoSrc = `${import.meta.env.BASE_URL}alnaseem-logo.png`;
-const feedbackScreens = ["الرئيسية", "دليل التجربة", "العملاء", "الطلبات", "تفاصيل الطلب", "المتابعة", "الشكاوى والصيانة", "التقارير", "الإعدادات"] as const;
+const feedbackScreens = ["الرئيسية", "العملاء", "الطلبات", "تفاصيل الطلب", "المتابعة", "الشكاوى والصيانة", "التقارير", "الإعدادات"] as const;
 const feedbackScreenLabels: Record<string, string> = {
   dashboard: "الرئيسية",
-  guide: "دليل التجربة",
   customers: "العملاء",
   requests: "الطلبات",
   "request-details": "تفاصيل الطلب",
@@ -102,13 +101,13 @@ const feedbackScreenLabels: Record<string, string> = {
 };
 
 const employees: Employee[] = [
-  { id: "sales", name: "نسيم", role: "المبيعات" },
-  { id: "projects", name: "كريم", role: "المشاريع" },
-  { id: "relations", name: "فهد", role: "علاقات الزبائن" },
-  { id: "install", name: "وسام", role: "الإنتاج والتركيب" },
-  { id: "factory", name: "حلمي", role: "المصنع" },
-  { id: "technical", name: "المهندسة", role: "التنسيق الفني" },
-  { id: "hr", name: "ماجدة", role: "شؤون الموظفين" },
+  { id: "sales", role: "قسم المبيعات" },
+  { id: "projects", role: "قسم المشاريع" },
+  { id: "relations", role: "قسم علاقات الزبائن" },
+  { id: "install", role: "قسم الإنتاج والتركيب" },
+  { id: "factory", role: "قسم المصنع" },
+  { id: "technical", role: "قسم التنسيق الفني" },
+  { id: "hr", role: "قسم شؤون الموظفين" },
 ];
 
 const routeSuggestion: Record<RequestType, string> = {
@@ -168,7 +167,7 @@ function seedData() {
       priority: i % 11 === 0 ? "عاجل" : i % 4 === 0 ? "مهم" : "عادي",
       urgentReason: i % 11 === 0 ? "العميل يحتاج ردًا سريعًا قبل نهاية اليوم." : "",
       assigneeId: routeSuggestion[type],
-      createdBy: "سارة",
+      createdBy: "قسم السنترال",
       createdAt,
       transferredAt: status === "مسودة" ? "" : iso(15 + i * 37),
       acceptedAt: ["تم الاستلام", "قيد التنفيذ", "موعد محدد", "مكتمل"].includes(status) ? iso(5 + i * 37) : "",
@@ -177,8 +176,8 @@ function seedData() {
     };
   });
   const timelines: TimelineEvent[] = requests.flatMap((request, i) => [
-    { id: `t${i}-1`, requestId: request.id, at: request.createdAt, actor: "سارة — السنترال", action: "تم تسجيل الطلب" },
-    ...(request.transferredAt ? [{ id: `t${i}-2`, requestId: request.id, at: request.transferredAt, actor: "سارة — السنترال", action: `تم تحويل الطلب إلى ${employeeName(request.assigneeId)}` }] : []),
+    { id: `t${i}-1`, requestId: request.id, at: request.createdAt, actor: "قسم السنترال", action: "تم تسجيل الطلب" },
+    ...(request.transferredAt ? [{ id: `t${i}-2`, requestId: request.id, at: request.transferredAt, actor: "قسم السنترال", action: `تم تحويل الطلب إلى ${employeeName(request.assigneeId)}` }] : []),
     ...(request.acceptedAt ? [{ id: `t${i}-3`, requestId: request.id, at: request.acceptedAt, actor: employeeName(request.assigneeId), action: "تم استلام الطلب وتحديث الحالة" }] : []),
   ]);
   const contacts: ContactLog[] = Array.from({ length: 20 }, (_, i) => ({
@@ -189,7 +188,7 @@ function seedData() {
     direction: i % 2 === 0 ? "وارد" : "صادر",
     result: ["تم الرد", "لم يرد", "تم التأكيد", "طلب معلومات إضافية"][i % 4],
     notes: "توثيق اتصال تجريبي ضمن سجل العميل والطلب.",
-    user: "سارة",
+    user: "قسم السنترال",
   }));
   const complaints: Complaint[] = Array.from({ length: 5 }, (_, i) => ({
     id: `cmp${i + 1}`,
@@ -223,7 +222,7 @@ function seedData() {
 
 function employeeName(id: string) {
   const employee = employees.find((item) => item.id === id);
-  return employee ? `${employee.name} — ${employee.role}` : "غير محدد";
+  return employee ? employee.role : "غير محدد";
 }
 
 function useStoredState<T>(key: string, fallback: T) {
@@ -290,7 +289,7 @@ function App() {
       await context.registerTool({
         name: "read_central_summary",
         title: "Read central summary",
-        description: "Return a concise summary of the current prototype counts.",
+        description: "إرجاع ملخص مختصر للأعداد الحالية في النظام.",
         inputSchema: { type: "object", properties: {}, additionalProperties: false },
         annotations: { readOnlyHint: true, untrustedContentHint: false },
         execute: () => ({
@@ -302,9 +301,9 @@ function App() {
         }),
       }, { signal: lifecycle.signal });
       await context.registerTool({
-        name: "create_demo_customer",
-        title: "Create demo customer",
-        description: "Create a customer in the same local state used by the visible create-customer flow.",
+        name: "create_customer_record",
+        title: "إنشاء سجل عميل",
+        description: "إنشاء عميل في نفس التخزين المحلي المستخدم في واجهة إنشاء العميل.",
         inputSchema: {
           type: "object",
           properties: {
@@ -393,7 +392,6 @@ type AppState = ReturnType<typeof App> extends never ? never : {
 function Shell({ onLogout, unread, app, resetData, feedbacks }: { onLogout: () => void; unread: number; app: AppState; resetData: () => void; feedbacks: Feedback[] }) {
   const items = [
     ["/dashboard", "الرئيسية", Home],
-    ["/guide", "دليل التجربة", Star],
     ["/requests/new", "تسجيل اتصال / طلب جديد", Plus],
     ["/requests", "الطلبات الواردة", ClipboardList],
     ["/transferred", "الطلبات المحولة", RefreshCw],
@@ -403,22 +401,19 @@ function Shell({ onLogout, unread, app, resetData, feedbacks }: { onLogout: () =
     ["/notifications", "الإشعارات", Bell],
     ["/reports", "التقارير", FileText],
     ["/settings", "الإعدادات", Settings],
-    ["/demo", "حالات التجربة", Sparkles],
   ] as const;
   return (
     <div className="app-shell">
       <aside>
         <Link className="brand" to="/dashboard"><Logo compact /></Link>
-        <div className="prototype-mark">نسخة تجريبية للعرض</div>
         <nav>{items.map(([href, label, Icon]) => <Link key={href} to={href}><Icon size={18} />{label}{label === "الإشعارات" && unread > 0 ? <span>{unread}</span> : null}</Link>)}</nav>
         <button className="logout" onClick={onLogout}><LogOut size={18} />تسجيل الخروج</button>
       </aside>
       <section className="workspace">
-        <header className="topbar"><Menu /><div><strong>سارة أحمد</strong><small>موظفة السنترال / الاستقبال</small></div></header>
+        <header className="topbar"><Menu /><div><strong>قسم السنترال</strong><small>الاستقبال وتحويل الطلبات</small></div></header>
         <Routes>
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
           <Route path="/dashboard" element={<Dashboard app={app} />} />
-          <Route path="/guide" element={<Guide app={app} />} />
           <Route path="/customers" element={<Customers app={app} />} />
           <Route path="/customers/new" element={<NewCustomer app={app} />} />
           <Route path="/customers/:id" element={<CustomerProfile app={app} />} />
@@ -432,7 +427,6 @@ function Shell({ onLogout, unread, app, resetData, feedbacks }: { onLogout: () =
           <Route path="/notifications" element={<Notifications app={app} />} />
           <Route path="/reports" element={<Reports app={app} />} />
           <Route path="/settings" element={<SettingsPage resetData={resetData} feedbacks={feedbacks} />} />
-          <Route path="/demo" element={<Demo app={app} />} />
         </Routes>
       </section>
     </div>
@@ -455,8 +449,7 @@ function Stat({ icon, label, value, tone }: { icon: ReactNode; label: string; va
 function Dashboard({ app }: { app: AppState }) {
   const due = app.requests.filter((r) => r.followUpAt || ["بانتظار الاستلام", "بانتظار معلومات", "موعد محدد"].includes(r.status)).slice(0, 6);
   return (
-    <Page title="صباح الخير، سارة" subtitle="إليك ملخص عمل السنترال اليوم" action={<div className="actions"><Link className="secondary pill" to="/guide"><Star size={18} />دليل التجربة</Link><Link className="primary pill" to="/requests/new"><Plus size={18} />تسجيل اتصال / طلب جديد</Link></div>}>
-      <div className="demo-strip"><Sparkles size={18} /><b>جاهز للتجربة أمام الإدارة</b><span>ابدأ من دليل التجربة، ثم جرّب البحث والتحويل والمتابعة وسجّل الملاحظات من الزر العائم.</span></div>
+    <Page title="صباح الخير" subtitle="إليك ملخص عمل السنترال اليوم" action={<Link className="primary pill" to="/requests/new"><Plus size={18} />تسجيل اتصال / طلب جديد</Link>}>
       <div className="stats">
         <Stat icon={<Phone />} label="اتصالات اليوم" value={18} tone="green" />
         <Stat icon={<ClipboardList />} label="طلبات جديدة" value={7} tone="blue" />
@@ -472,30 +465,6 @@ function Dashboard({ app }: { app: AppState }) {
         </Card>
       </div>
       <Card title="آخر الاتصالات"><ContactTable contacts={app.contacts.slice(0, 8)} customers={app.customers} /></Card>
-    </Page>
-  );
-}
-
-function Guide({ app }: { app: AppState }) {
-  const rows = [
-    ["بحث عن عميل موجود", "جرّب أحمد محمد أو شركة النور", `/customers/${app.customers[0]?.id}`],
-    ["إنشاء طلب وتحويله", "اختيار نوع الطلب يقترح الجهة تلقائيًا", "/requests/new"],
-    ["متابعة طلب متأخر", "إرسال تذكير تجريبي وتوثيقه في Timeline", `/requests/${app.requests.find((r) => r.status === "بانتظار الاستلام")?.id}`],
-    ["إضافة اتصال لاحق", "فتح تفاصيل طلب ثم تسجيل نتيجة الاتصال", `/requests/${app.requests[0]?.id}`],
-    ["الشكاوى والصيانة", "مراجعة الحالات المحولة للمتابعة", "/complaints"],
-    ["تصدير الملاحظات", "من الإعدادات بعد أن يضيف الفريق ملاحظاته", "/settings"],
-  ];
-  return (
-    <Page title="دليل التجربة" subtitle="قائمة قصيرة لتسهيل عرض النموذج وأخذ الموافقة">
-      <div className="guide-grid">
-        {rows.map(([title, detail, href], index) => (
-          <Link className="guide-card" to={href} key={title}>
-            <span>{index + 1}</span>
-            <b>{title}</b>
-            <p>{detail}</p>
-          </Link>
-        ))}
-      </div>
     </Page>
   );
 }
@@ -563,11 +532,26 @@ function NewCustomer({ app }: { app: AppState }) {
 
 function CustomerProfile({ app }: { app: AppState }) {
   const { id } = useParams();
+  const [selectedRequestId, setSelectedRequestId] = useState("");
   const customer = app.customers.find((c) => c.id === id);
   if (!customer) return <Page title="العميل غير موجود"><Empty /></Page>;
   const customerRequests = app.requests.filter((r) => r.customerId === customer.id);
+  const selectedRequest = customerRequests.find((request) => request.id === selectedRequestId) ?? customerRequests[0];
   return (
     <Page title={customer.name} subtitle={`${customer.phone} · ${customer.city}`} action={<Link className="primary pill" to={`/requests/new?customer=${customer.id}`}><Plus size={18} />إنشاء طلب جديد</Link>}>
+      {selectedRequest ? (
+        <CustomerJourney
+          request={selectedRequest}
+          requests={customerRequests}
+          timelines={app.timelines}
+          setTimelines={app.setTimelines}
+          setRequests={app.setRequests}
+          allRequests={app.requests}
+          selectedRequestId={selectedRequestId || selectedRequest.id}
+          setSelectedRequestId={setSelectedRequestId}
+          setToast={app.setToast}
+        />
+      ) : null}
       <div className="grid two">
         <Card title="معلومات العميل"><Info rows={[["الهاتف", customer.phone], ["البريد", customer.email ?? "—"], ["المنطقة", customer.city], ["ملاحظات", customer.notes || "—"]]} /></Card>
         <Card title="إجراءات"><div className="actions"><Link className="secondary" to={`/requests/new?customer=${customer.id}`}>تسجيل اتصال</Link><Link className="secondary" to={`/requests/new?customer=${customer.id}`}>إنشاء طلب جديد</Link></div></Card>
@@ -575,6 +559,104 @@ function CustomerProfile({ app }: { app: AppState }) {
       <Card title="الطلبات السابقة"><RequestTable requests={customerRequests} customers={app.customers} /></Card>
       <Card title="الاتصالات">{app.contacts.filter((c) => c.customerId === customer.id).map((c) => <div className="notice" key={c.id}><Phone size={18} /><div><b>{c.direction} · {c.result}</b><p>{c.notes}</p></div></div>)}</Card>
     </Page>
+  );
+}
+
+const journeySteps = ["تم التسجيل", "تم التحويل", "بانتظار الاستلام", "تم الاستلام", "قيد العمل", "الإغلاق"];
+
+function journeyIndex(request: RequestItem) {
+  if (["مغلق", "ملغي", "مكتمل"].includes(request.status)) return 5;
+  if (["قيد التنفيذ", "قيد المعالجة", "قيد المتابعة", "موعد محدد", "بانتظار معلومات", "مشكلة", "مؤجل"].includes(request.status)) return 4;
+  if (request.acceptedAt || request.status === "تم الاستلام") return 3;
+  if (request.status === "بانتظار الاستلام") return 2;
+  if (request.transferredAt) return 1;
+  return 0;
+}
+
+function stageTime(request: RequestItem, index: number, timelines: TimelineEvent[]) {
+  if (index === 0) return request.createdAt;
+  if (index === 1) return request.transferredAt || request.createdAt;
+  if (index === 2) return request.transferredAt || request.createdAt;
+  if (index === 3) return request.acceptedAt || request.transferredAt || request.createdAt;
+  const related = timelines.filter((event) => event.requestId === request.id).sort((a, b) => +new Date(b.at) - +new Date(a.at));
+  return related[0]?.at || request.acceptedAt || request.transferredAt || request.createdAt;
+}
+
+function CustomerJourney({
+  request,
+  requests,
+  timelines,
+  allRequests,
+  selectedRequestId,
+  setSelectedRequestId,
+  setTimelines,
+  setRequests,
+  setToast,
+}: {
+  request: RequestItem;
+  requests: RequestItem[];
+  timelines: TimelineEvent[];
+  allRequests: RequestItem[];
+  selectedRequestId: string;
+  setSelectedRequestId: (id: string) => void;
+  setTimelines: (items: TimelineEvent[]) => void;
+  setRequests: (items: RequestItem[]) => void;
+  setToast: (message: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [note, setNote] = useState("");
+  const currentIndex = journeyIndex(request);
+  const events = timelines.filter((event) => event.requestId === request.id).slice(0, 5);
+  const saveNote = (kind: "تذكير" | "ملاحظة") => {
+    if (!note.trim()) return setToast("اكتب التذكير أو الملاحظة أولًا");
+    const at = new Date().toISOString();
+    const updatedRequests = allRequests.map((item) => item.id === request.id ? { ...item, internalNotes: `${item.internalNotes ? `${item.internalNotes}\n` : ""}${kind}: ${note}` } : item);
+    // oxlint-disable-next-line react/purity
+    setTimelines([{ id: `t${Date.now()}`, requestId: request.id, at, actor: "قسم السنترال", action: `${kind} إلى ${employeeName(request.assigneeId)}: ${note}` }, ...timelines]);
+    setRequests(updatedRequests);
+    setNote("");
+    setToast(kind === "تذكير" ? "تم حفظ التذكير في سجل الحركة" : "تم حفظ الملاحظة في سجل الحركة");
+  };
+  return (
+    <section className="journey-card">
+      <div className="journey-head">
+        <div>
+          <h2>أين وصل طلب العميل؟</h2>
+          <p>الطلب #{request.number} · {request.type} · {employeeName(request.assigneeId)}</p>
+        </div>
+        <div className="actions">
+          <select value={selectedRequestId} onChange={(event) => setSelectedRequestId(event.target.value)}>
+            {requests.map((item) => <option value={item.id} key={item.id}>طلب #{item.number} · {item.status}</option>)}
+          </select>
+          <button className="secondary" onClick={() => setOpen(!open)}>أين وصل؟</button>
+        </div>
+      </div>
+      <div className="journey-steps">
+        {journeySteps.map((step, index) => (
+          <button key={step} className={index <= currentIndex ? "done" : ""} onClick={() => setOpen(true)}>
+            <span>{index + 1}</span>
+            <b>{step}</b>
+            <small>{index <= currentIndex ? formatTime(stageTime(request, index, timelines)) : "لم يصل بعد"}</small>
+          </button>
+        ))}
+      </div>
+      {open && (
+        <div className="journey-detail">
+          <Info rows={[
+            ["الحالة الحالية", request.status],
+            ["القسم الحالي", employeeName(request.assigneeId)],
+            ["وقت الوصول الحالي", formatTime(stageTime(request, currentIndex, timelines))],
+            ["موعد المتابعة", formatTime(request.followUpAt)],
+          ]} />
+          <div>
+            <h3>آخر حركة</h3>
+            {events.map((event) => <div className="timeline compact" key={event.id}><time>{formatTime(event.at)}</time><div><b>{event.actor}</b><p>{event.action}</p></div></div>)}
+          </div>
+          <textarea placeholder="اكتب تذكيرًا للقسم أو ملاحظة داخلية على الطلب" value={note} onChange={(event) => setNote(event.target.value)} />
+          <div className="actions"><button className="secondary" onClick={() => saveNote("ملاحظة")}>حفظ ملاحظة</button><button className="primary" onClick={() => saveNote("تذكير")}>حفظ تذكير</button></div>
+        </div>
+      )}
+    </section>
   );
 }
 
@@ -603,13 +685,13 @@ function NewRequest({ app }: { app: AppState }) {
       priority,
       urgentReason,
       assigneeId,
-      createdBy: "سارة",
+      createdBy: "قسم السنترال",
       createdAt: new Date().toISOString(),
       transferredAt: transfer ? new Date().toISOString() : "",
       followUpAt,
     };
     app.setRequests([request, ...app.requests]);
-    app.setTimelines([{ id: `t${Date.now()}`, requestId: request.id, at: request.createdAt, actor: "سارة — السنترال", action: transfer ? `تم حفظ وتحويل الطلب إلى ${employeeName(assigneeId)}` : "تم حفظ الطلب كمسودة" }, ...app.timelines]);
+    app.setTimelines([{ id: `t${Date.now()}`, requestId: request.id, at: request.createdAt, actor: "قسم السنترال", action: transfer ? `تم حفظ وتحويل الطلب إلى ${employeeName(assigneeId)}` : "تم حفظ الطلب كمسودة" }, ...app.timelines]);
     app.setToast(transfer ? `تم تحويل الطلب إلى ${employeeName(assigneeId)}` : "تم إنشاء الطلب");
     navigate(`/requests/${request.id}`);
   };
@@ -621,7 +703,7 @@ function NewRequest({ app }: { app: AppState }) {
           <h2>بيانات الطلب</h2>
           <select value={type} onChange={(e) => updateType(e.target.value as RequestType)}>{Object.keys(routeSuggestion).map((item) => <option key={item}>{item}</option>)}</select>
           <textarea placeholder="وصف الطلب *" value={description} onChange={(e) => setDescription(e.target.value)} />
-          <select value={assigneeId} onChange={(e) => setAssigneeId(e.target.value)}>{employees.map((e) => <option value={e.id} key={e.id}>{e.name} — {e.role}</option>)}</select>
+          <select value={assigneeId} onChange={(e) => setAssigneeId(e.target.value)}>{employees.map((e) => <option value={e.id} key={e.id}>{e.role}</option>)}</select>
           <div className="segmented">{(["عادي", "مهم", "عاجل"] as Priority[]).map((p) => <button type="button" className={priority === p ? "active" : ""} onClick={() => setPriority(p)} key={p}>{p}</button>)}</div>
           {priority === "عاجل" && <input placeholder="سبب الاستعجال *" value={urgentReason} onChange={(e) => setUrgentReason(e.target.value)} />}
           <input type="datetime-local" value={followUpAt} onChange={(e) => setFollowUpAt(e.target.value)} />
@@ -646,15 +728,15 @@ function RequestDetails({ app }: { app: AppState }) {
   const events = app.timelines.filter((t) => t.requestId === request.id).sort((a, b) => +new Date(b.at) - +new Date(a.at));
   const addContact = () => {
     // oxlint-disable-next-line react/purity
-    const contact: ContactLog = { id: `cl${Date.now()}`, customerId: customer.id, requestId: request.id, at: new Date().toISOString(), direction: "صادر", result: "تم التأكيد", notes: "تم إضافة اتصال لاحق وتحديث سجل الطلب.", user: "سارة" };
+    const contact: ContactLog = { id: `cl${Date.now()}`, customerId: customer.id, requestId: request.id, at: new Date().toISOString(), direction: "صادر", result: "تم التأكيد", notes: "تم إضافة اتصال لاحق وتحديث سجل الطلب.", user: "قسم السنترال" };
     app.setContacts([contact, ...app.contacts]);
     // oxlint-disable-next-line react/purity
-    app.setTimelines([{ id: `t${Date.now()}`, requestId: request.id, at: contact.at, actor: "سارة — السنترال", action: "تم تسجيل اتصال لاحق: تم التأكيد" }, ...app.timelines]);
+    app.setTimelines([{ id: `t${Date.now()}`, requestId: request.id, at: contact.at, actor: "قسم السنترال", action: "تم تسجيل اتصال لاحق: تم التأكيد" }, ...app.timelines]);
     app.setToast("تم تسجيل الاتصال");
   };
   const remind = () => {
     // oxlint-disable-next-line react/purity
-    app.setTimelines([{ id: `t${Date.now()}`, requestId: request.id, at: new Date().toISOString(), actor: "سارة — السنترال", action: `تم إرسال تذكير تجريبي إلى ${employeeName(request.assigneeId)}` }, ...app.timelines]);
+    app.setTimelines([{ id: `t${Date.now()}`, requestId: request.id, at: new Date().toISOString(), actor: "قسم السنترال", action: `تم إرسال تذكير إلى ${employeeName(request.assigneeId)}` }, ...app.timelines]);
     app.setToast("تم إرسال تذكير تجريبي");
   };
   return (
@@ -689,7 +771,7 @@ function Complaints({ app }: { app: AppState }) {
 }
 
 function Maintenance({ app }: { app: AppState }) {
-  return <Page title="الصيانة" subtitle="تحويل افتراضي إلى وسام — الإنتاج والتركيب"><Card title="طلبات الصيانة">{app.maintenance.map((m) => <RecordRow key={m.id} title={`${customerName(app.customers, m.customerId)} · ${m.product}`} detail={m.issue} badge={m.status} />)}</Card></Page>;
+  return <Page title="الصيانة" subtitle="تحويل افتراضي إلى قسم الإنتاج والتركيب"><Card title="طلبات الصيانة">{app.maintenance.map((m) => <RecordRow key={m.id} title={`${customerName(app.customers, m.customerId)} · ${m.product}`} detail={m.issue} badge={m.status} />)}</Card></Page>;
 }
 
 function Notifications({ app }: { app: AppState }) {
@@ -698,28 +780,36 @@ function Notifications({ app }: { app: AppState }) {
 }
 
 function Reports({ app }: { app: AppState }) {
-  return <Page title="التقارير التجريبية"><div className="stats"><Stat icon={<Phone />} label="اتصالات اليوم" value={18} tone="green" /><Stat icon={<ClipboardList />} label="الطلبات الجديدة" value={app.requests.length} tone="blue" /><Stat icon={<Clock />} label="بانتظار الاستلام" value={app.requests.filter((r) => r.status === "بانتظار الاستلام").length} tone="orange" /><Stat icon={<MessageSquareWarning />} label="الشكاوى المفتوحة" value={app.complaints.filter((c) => c.status !== "تم الحل").length} tone="purple" /></div><Card title="حسب الجهة">{employees.map((e) => <RecordRow key={e.id} title={employeeName(e.id)} detail={`${app.requests.filter((r) => r.assigneeId === e.id).length} طلب`} badge="تجريبي" />)}</Card></Page>;
+  const [filters, setFilters] = useState<ReportFilters>({ ...emptyFilters, customerId: "الكل" });
+  const filtered = applyRequestFilters(app.requests, app.customers, filters).filter((request) => filters.customerId === "الكل" || request.customerId === filters.customerId);
+  const waiting = filtered.filter((request) => request.status === "بانتظار الاستلام").length;
+  const urgent = filtered.filter((request) => request.priority === "عاجل").length;
+  const openComplaints = app.complaints.filter((complaint) => complaint.status !== "تم الحل").length;
+  return (
+    <Page title="التقارير" subtitle="تقارير قابلة للفلترة والطباعة" action={<button className="primary pill no-print" onClick={() => window.print()}><Printer size={18} />طباعة / حفظ PDF</button>}>
+      <section className="report-surface">
+        <ReportFilterBar filters={filters} setFilters={setFilters} customers={app.customers} />
+        <div className="stats report-stats">
+          <Stat icon={<ClipboardList />} label="إجمالي الطلبات" value={filtered.length} tone="blue" />
+          <Stat icon={<Clock />} label="بانتظار الاستلام" value={waiting} tone="orange" />
+          <Stat icon={<Bell />} label="طلبات عاجلة" value={urgent} tone="purple" />
+          <Stat icon={<MessageSquareWarning />} label="شكاوى مفتوحة" value={openComplaints} tone="green" />
+        </div>
+        <div className="grid two">
+          <Card title="ملخص حسب القسم">{employees.map((employee) => <RecordRow key={employee.id} title={employee.role} detail={`${filtered.filter((request) => request.assigneeId === employee.id).length} طلب`} badge="قسم" />)}</Card>
+          <Card title="ملخص حسب نوع الطلب">{Object.keys(routeSuggestion).map((type) => <RecordRow key={type} title={type} detail={`${filtered.filter((request) => request.type === type).length} طلب`} badge="نوع" />)}</Card>
+        </div>
+        <Card title={`نتائج التقرير (${filtered.length})`}><RequestTable requests={filtered} customers={app.customers} /></Card>
+      </section>
+    </Page>
+  );
 }
 
 function SettingsPage({ resetData, feedbacks }: { resetData: () => void; feedbacks: Feedback[] }) {
-  return <Page title="الإعدادات" subtitle="إعدادات محلية للنسخة التجريبية"><div className="grid two"><Card title="إعدادات النسخة التجريبية"><Info rows={[["مدة تأخر الاستلام", "30 دقيقة"], ["وضع التجربة", "مفعل"], ["مصدر البيانات", "تخزين محلي في المتصفح فقط"]]} /><button className="secondary danger-text" onClick={() => confirm("إعادة بيانات التجربة؟") && resetData()}>إعادة بيانات التجربة</button></Card><Card title="ملاحظات الإدارة"><Info rows={[["عدد الملاحظات", String(feedbacks.length)], ["طريقة الحفظ", "محليًا في المتصفح"], ["الاستخدام", "تصدير ومراجعة بعد العرض"]]} /><button className="primary" onClick={() => exportFeedback(feedbacks)}><Download size={18} />تصدير الملاحظات</button></Card></div></Page>;
+  return <Page title="الإعدادات" subtitle="إعدادات محلية للنظام"><div className="grid two"><Card title="إعدادات النظام"><Info rows={[["مدة تأخر الاستلام", "30 دقيقة"], ["مصدر البيانات", "تخزين محلي في المتصفح فقط"]]} /><button className="secondary danger-text" onClick={() => confirm("إعادة البيانات؟") && resetData()}>إعادة البيانات</button></Card><Card title="ملاحظات الإدارة"><Info rows={[["عدد الملاحظات", String(feedbacks.length)], ["طريقة الحفظ", "محليًا في المتصفح"], ["الاستخدام", "تصدير ومراجعة بعد العرض"]]} /><button className="primary" onClick={() => exportFeedback(feedbacks)}><Download size={18} />تصدير الملاحظات</button></Card></div></Page>;
 }
 
-function Demo({ app }: { app: AppState }) {
-  const scenarios = [
-    ["عميل موجود", `/customers/${app.customers[0].id}`],
-    ["هاتف مكرر", "/customers/new"],
-    ["طلب متأخر", `/requests/${app.requests.find((r) => r.status === "بانتظار الاستلام")?.id}`],
-    ["شكوى", "/complaints"],
-    ["صيانة", "/maintenance"],
-    ["موعد اليوم", `/requests/${app.requests.find((r) => r.status === "موعد محدد")?.id}`],
-    ["طلب عاجل", `/requests/${app.requests.find((r) => r.priority === "عاجل")?.id}`],
-    ["بحاجة معلومات", `/requests/${app.requests.find((r) => r.status === "بانتظار معلومات")?.id}`],
-  ];
-  return <Page title="حالات التجربة" subtitle="انتقال مباشر للحالات المهمة أثناء عرض الإدارة"><div className="scenario-grid">{scenarios.map(([label, href]) => <Link className="scenario" to={href} key={label}><Sparkles />{label}</Link>)}</div></Page>;
-}
-
-const emptyFilters: RequestFilters = { query: "", status: "الكل", type: "الكل", assigneeId: "الكل", date: "" };
+const emptyFilters: RequestFilters = { query: "", status: "الكل", type: "الكل", assigneeId: "الكل", dateFrom: "", dateTo: "" };
 
 function RequestFilterBar({ filters, setFilters }: { filters: RequestFilters; setFilters: (v: RequestFilters) => void }) {
   return (
@@ -727,11 +817,30 @@ function RequestFilterBar({ filters, setFilters }: { filters: RequestFilters; se
       <div className="filter-title"><SlidersHorizontal size={18} /><b>فلترة النتائج</b></div>
       <div className="filter-grid">
         <label><Search size={16} /><input placeholder="اسم العميل أو رقم الطلب أو الهاتف" value={filters.query} onChange={(e) => setFilters({ ...filters, query: e.target.value })} /></label>
-        <label><Clock size={16} /><input type="date" value={filters.date} onChange={(e) => setFilters({ ...filters, date: e.target.value })} /></label>
+        <label><Clock size={16} /><input aria-label="من تاريخ" type="date" value={filters.dateFrom} onChange={(e) => setFilters({ ...filters, dateFrom: e.target.value })} /></label>
+        <label><Clock size={16} /><input aria-label="إلى تاريخ" type="date" value={filters.dateTo} onChange={(e) => setFilters({ ...filters, dateTo: e.target.value })} /></label>
         <label><FilterIcon size={16} /><select value={filters.status} onChange={(e) => setFilters({ ...filters, status: e.target.value })}>{["الكل", "مسودة", "بانتظار الاستلام", "تم الاستلام", "قيد المتابعة", "بانتظار معلومات", "موعد محدد", "قيد التنفيذ", "مغلق", "ملغي"].map((item) => <option key={item}>{item}</option>)}</select></label>
         <label><ClipboardList size={16} /><select value={filters.type} onChange={(e) => setFilters({ ...filters, type: e.target.value })}>{["الكل", ...Object.keys(routeSuggestion)].map((item) => <option key={item}>{item}</option>)}</select></label>
-        <label><Users size={16} /><select value={filters.assigneeId} onChange={(e) => setFilters({ ...filters, assigneeId: e.target.value })}><option>الكل</option>{employees.map((e) => <option value={e.id} key={e.id}>{e.name} — {e.role}</option>)}</select></label>
+        <label><Users size={16} /><select value={filters.assigneeId} onChange={(e) => setFilters({ ...filters, assigneeId: e.target.value })}><option>الكل</option>{employees.map((e) => <option value={e.id} key={e.id}>{e.role}</option>)}</select></label>
         <button className="secondary" onClick={() => setFilters(emptyFilters)}>مسح الفلاتر</button>
+      </div>
+    </section>
+  );
+}
+
+function ReportFilterBar({ filters, setFilters, customers }: { filters: ReportFilters; setFilters: (v: ReportFilters) => void; customers: Customer[] }) {
+  return (
+    <section className="filter-panel no-print">
+      <div className="filter-title"><SlidersHorizontal size={18} /><b>فلاتر التقرير</b></div>
+      <div className="filter-grid report-filter-grid">
+        <label><Search size={16} /><input placeholder="بحث بالاسم أو الهاتف أو رقم الطلب" value={filters.query} onChange={(e) => setFilters({ ...filters, query: e.target.value })} /></label>
+        <label><Clock size={16} /><input aria-label="من تاريخ" type="date" value={filters.dateFrom} onChange={(e) => setFilters({ ...filters, dateFrom: e.target.value })} /></label>
+        <label><Clock size={16} /><input aria-label="إلى تاريخ" type="date" value={filters.dateTo} onChange={(e) => setFilters({ ...filters, dateTo: e.target.value })} /></label>
+        <label><User size={16} /><select value={filters.customerId} onChange={(e) => setFilters({ ...filters, customerId: e.target.value })}><option>الكل</option>{customers.map((customer) => <option value={customer.id} key={customer.id}>{customer.name}</option>)}</select></label>
+        <label><FilterIcon size={16} /><select value={filters.status} onChange={(e) => setFilters({ ...filters, status: e.target.value })}>{["الكل", "مسودة", "بانتظار الاستلام", "تم الاستلام", "قيد المتابعة", "بانتظار معلومات", "موعد محدد", "قيد التنفيذ", "مغلق", "ملغي"].map((item) => <option key={item}>{item}</option>)}</select></label>
+        <label><ClipboardList size={16} /><select value={filters.type} onChange={(e) => setFilters({ ...filters, type: e.target.value })}>{["الكل", ...Object.keys(routeSuggestion)].map((item) => <option key={item}>{item}</option>)}</select></label>
+        <label><Users size={16} /><select value={filters.assigneeId} onChange={(e) => setFilters({ ...filters, assigneeId: e.target.value })}><option>الكل</option>{employees.map((employee) => <option value={employee.id} key={employee.id}>{employee.role}</option>)}</select></label>
+        <button className="secondary" onClick={() => setFilters({ ...emptyFilters, customerId: "الكل" })}>مسح الفلاتر</button>
       </div>
     </section>
   );
@@ -742,7 +851,8 @@ function applyRequestFilters(requests: RequestItem[], customers: Customer[], fil
   return requests.filter((request) => {
     const customer = customers.find((item) => item.id === request.customerId);
     const haystack = `${request.number} ${request.type} ${request.description} ${customer?.name ?? ""} ${customer?.phone ?? ""} ${customer?.company ?? ""}`;
-    const dateOk = !filters.date || request.createdAt.slice(0, 10) === filters.date || request.followUpAt?.slice(0, 10) === filters.date || request.transferredAt?.slice(0, 10) === filters.date;
+    const dates = [request.createdAt, request.followUpAt, request.transferredAt, request.acceptedAt].filter(Boolean).map((value) => value!.slice(0, 10));
+    const dateOk = dates.some((date) => (!filters.dateFrom || date >= filters.dateFrom) && (!filters.dateTo || date <= filters.dateTo));
     return (!q || haystack.includes(q))
       && (filters.status === "الكل" || request.status === filters.status)
       && (filters.type === "الكل" || request.type === filters.type)
