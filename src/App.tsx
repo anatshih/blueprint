@@ -287,6 +287,13 @@ function whatsappHref(phone: string, message: string) {
   return `https://wa.me/970${localNumber}?text=${encodeURIComponent(message)}`;
 }
 
+function normalizeLoginValue(value: string) {
+  return value
+    .trim()
+    .replace(/[٠-٩]/g, (digit) => String("٠١٢٣٤٥٦٧٨٩".indexOf(digit)))
+    .replace(/[۰-۹]/g, (digit) => String("۰۱۲۳۴۵۶۷۸۹".indexOf(digit)));
+}
+
 function isToday(value?: string) {
   if (!value) return false;
   const date = new Date(value);
@@ -440,8 +447,10 @@ function Login({ onLogin }: { onLogin: () => void }) {
   const [error, setError] = useState("");
   const submit = (event: FormEvent) => {
     event.preventDefault();
-    if (username === "central" && password === "123456") {
-      if (remember) localStorage.setItem("alnaseem-remembered-user", username);
+    const cleanUsername = normalizeLoginValue(username).toLowerCase();
+    const cleanPassword = normalizeLoginValue(password);
+    if (cleanUsername === "central" && cleanPassword === "123456") {
+      if (remember) localStorage.setItem("alnaseem-remembered-user", cleanUsername);
       else localStorage.removeItem("alnaseem-remembered-user");
       onLogin();
     } else setError("اسم المستخدم أو كلمة المرور غير صحيحة.");
