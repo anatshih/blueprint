@@ -615,22 +615,19 @@ function WorkTile({ to, icon, count, title, hint, action, tone }: { to: string; 
 function Dashboard({ app }: { app: AppState }) {
   const unassigned = app.requests.filter(isUnassignedRequest);
   const waiting = app.requests.filter((r) => r.status === "بانتظار الاستلام");
-  const followUps = app.requests.filter((r) => r.followUpAt || ["بانتظار معلومات", "موعد محدد", "قيد المتابعة"].includes(r.status));
-  const todayRequests = app.requests.filter((r) => isToday(r.createdAt));
-  const transferred = app.requests.filter((r) => r.transferredAt && !["مغلق", "ملغي", "مكتمل"].includes(r.status));
-  const customersWithRequests = new Set(app.requests.map((request) => request.customerId)).size;
-  const callsToday = app.contacts.filter((c) => isToday(c.at)).length;
+  const missingInfo = app.requests.filter((r) => r.status === "بانتظار معلومات");
+  const followUps = app.requests.filter((r) => r.status === "قيد المتابعة" || r.followUpAt);
+  const appointments = app.requests.filter((r) => r.status === "موعد محدد");
+  const issues = app.requests.filter((r) => r.status === "مشكلة");
   return (
-    <Page title="لوحة العمل" subtitle="صناديق مباشرة تفتح المهمة المطلوبة بدون قوائم إضافية" action={<Link className="primary pill" to="/requests/new"><Plus size={18} />تسجيل اتصال / طلب جديد</Link>}>
+    <Page title="لوحة عمل السنترال" subtitle="الحالات التي تحتاج إجراء مباشر فقط" action={<Link className="primary pill" to="/requests/new"><Plus size={18} />تسجيل اتصال / طلب جديد</Link>}>
       <div className="work-grid">
-        <WorkTile to="/contacts-today" icon={<Phone />} count={callsToday} title="اتصالات اليوم" hint="كل اتصال وارد أو صادر تم تسجيله اليوم." action="فتح سجل الاتصالات" tone="green" />
-        <WorkTile to="/requests?date=today" icon={<ClipboardList />} count={todayRequests.length} title="طلبات اليوم" hint="طلبات أنشئت اليوم وتحتاج متابعة أولية." action="عرض طلبات اليوم" tone="blue" />
         <WorkTile to="/unassigned" icon={<AlertTriangle />} count={unassigned.length} title="طلبات غير محولة" hint="طلبات ما زالت عند السنترال ولم تصل لقسم مسؤول." action="استكمال وتحويل" tone="red" />
         <WorkTile to="/requests?status=بانتظار الاستلام" icon={<Clock />} count={waiting.length} title="بانتظار الاستلام" hint="طلبات أرسلت لقسم ولم يؤكد استلامها بعد." action="متابعة الاستلام" tone="orange" />
-        <WorkTile to="/follow-ups" icon={<Bell />} count={followUps.length} title="تحتاج متابعة" hint="مواعيد أو معلومات ناقصة أو طلبات تحتاج رجوع." action="فتح المتابعات" tone="purple" />
-        <WorkTile to="/requests?status=قيد التنفيذ" icon={<RefreshCw />} count={transferred.length} title="طلبات محولة" hint="طلبات خرجت من السنترال وتتابعها الأقسام." action="متابعة الأقسام" tone="cyan" />
-        <WorkTile to="/customers" icon={<Users />} count={customersWithRequests} title="العملاء" hint="بحث سريع وفتح ملف العميل وتاريخه." action="بحث عن عميل" tone="slate" />
-        <WorkTile to="/reports" icon={<FileText />} count={app.requests.length} title="التقارير" hint="فلترة حسب التاريخ والحالة والقسم مع طباعة." action="فتح التقارير" tone="indigo" />
+        <WorkTile to="/requests?status=بانتظار معلومات" icon={<Phone />} count={missingInfo.length} title="بانتظار معلومات" hint="بيانات ناقصة تحتاج اتصالًا بالعميل قبل إكمال الطلب." action="استكمال البيانات" tone="blue" />
+        <WorkTile to="/follow-ups" icon={<Bell />} count={followUps.length} title="قيد المتابعة" hint="طلبات تحتاج رجوعًا أو تذكيرًا في وقت محدد." action="فتح المتابعات" tone="purple" />
+        <WorkTile to="/requests?status=موعد محدد" icon={<ClipboardList />} count={appointments.length} title="موعد محدد" hint="مواعيد زيارة أو تركيب أو صيانة تحتاج تأكيدًا." action="تأكيد الموعد" tone="green" />
+        <WorkTile to="/requests?status=مشكلة" icon={<MessageSquareWarning />} count={issues.length} title="مشكلة" hint="تعثر أو شكوى تحتاج توثيقًا وتنبيه القسم المسؤول." action="متابعة المشكلة" tone="slate" />
       </div>
     </Page>
   );

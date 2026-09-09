@@ -221,12 +221,12 @@ nav a span { margin-inline-start: auto; background: #2563eb; border-radius: 999p
 
 .work-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(190px, 1fr));
+  grid-template-columns: repeat(3, minmax(220px, 1fr));
   gap: 16px;
 }
 .work-tile {
   position: relative;
-  min-height: 188px;
+  min-height: 168px;
   display: grid;
   grid-template-columns: auto 1fr;
   gap: 12px;
@@ -269,7 +269,7 @@ nav a span { margin-inline-start: auto; background: #2563eb; border-radius: 999p
 .work-tile strong {
   grid-column: 1 / -1;
   color: #0f172a;
-  font-size: 44px;
+  font-size: 40px;
   line-height: 1;
 }
 .work-tile b { color: #172033; font-size: 18px; line-height: 1.35; }
