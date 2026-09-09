@@ -221,22 +221,31 @@ nav a span { margin-inline-start: auto; background: #2563eb; border-radius: 999p
 
 .work-grid {
   display: grid;
-  grid-template-columns: repeat(5, minmax(145px, 1fr));
-  gap: 14px;
+  grid-template-columns: repeat(4, minmax(190px, 1fr));
+  gap: 16px;
 }
 .work-tile {
   position: relative;
-  min-height: 150px;
+  min-height: 188px;
   display: grid;
-  gap: 7px;
-  align-content: center;
-  padding: 18px;
+  grid-template-columns: auto 1fr;
+  gap: 12px;
+  align-content: start;
+  padding: 20px;
   border: 1px solid #e2e8f0;
   border-radius: 8px;
   background: #fff;
   color: #172033;
   box-shadow: 0 10px 28px rgba(15, 23, 42, .05);
   transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease;
+}
+.work-tile::after {
+  content: "";
+  grid-column: 1 / -1;
+  height: 3px;
+  border-radius: 999px;
+  background: #dbeafe;
+  align-self: end;
 }
 .work-tile:hover {
   transform: translateY(-2px);
@@ -252,14 +261,49 @@ nav a span { margin-inline-start: auto; background: #2563eb; border-radius: 999p
   background: #eff6ff;
 }
 .work-icon svg { width: 23px; height: 23px; }
-.work-tile strong { color: #0f172a; font-size: 36px; line-height: 1; }
-.work-tile b { color: #172033; font-size: 17px; }
-.work-tile small { color: #64748b; }
+.work-copy {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+}
+.work-tile strong {
+  grid-column: 1 / -1;
+  color: #0f172a;
+  font-size: 44px;
+  line-height: 1;
+}
+.work-tile b { color: #172033; font-size: 18px; line-height: 1.35; }
+.work-tile small { color: #64748b; line-height: 1.55; }
+.work-tile em {
+  grid-column: 1 / -1;
+  width: fit-content;
+  min-height: 30px;
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 12px;
+  border-radius: 999px;
+  background: #f8fafc;
+  color: #334155;
+  font-style: normal;
+  font-size: 13px;
+  font-weight: 900;
+}
 .work-tile.green .work-icon { background: #dcfce7; color: #16a34a; }
 .work-tile.blue .work-icon { background: #dbeafe; color: #2563eb; }
 .work-tile.orange .work-icon { background: #ffedd5; color: #d97706; }
 .work-tile.purple .work-icon { background: #ede9fe; color: #7c3aed; }
 .work-tile.red .work-icon { background: #fee2e2; color: #dc2626; }
+.work-tile.cyan .work-icon { background: #cffafe; color: #0891b2; }
+.work-tile.slate .work-icon { background: #e2e8f0; color: #475569; }
+.work-tile.indigo .work-icon { background: #e0e7ff; color: #4f46e5; }
+.work-tile.green::after { background: #86efac; }
+.work-tile.blue::after { background: #93c5fd; }
+.work-tile.orange::after { background: #fdba74; }
+.work-tile.purple::after { background: #c4b5fd; }
+.work-tile.red::after { background: #fca5a5; }
+.work-tile.cyan::after { background: #67e8f9; }
+.work-tile.slate::after { background: #cbd5e1; }
+.work-tile.indigo::after { background: #a5b4fc; }
 
 .shortcut-list {
   display: grid;

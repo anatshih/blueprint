@@ -91,6 +91,7 @@ type RequestFilters = { query: string; status: string; type: string; assigneeId:
 type ReportFilters = RequestFilters & { customerId: string };
 
 const logoSrc = `${import.meta.env.BASE_URL}alnaseem-logo.png`;
+const demoDataVersion = "2026-09-09-multi-day-statuses";
 
 const employees: Employee[] = [
   { id: "sales", role: "قسم المبيعات" },
@@ -128,6 +129,13 @@ function iso(minutesAgo: number) {
   return new Date(Date.now() - minutesAgo * 60000).toISOString();
 }
 
+function isoDays(daysAgo: number, hour: number, minute = 0) {
+  const date = new Date();
+  date.setDate(date.getDate() - daysAgo);
+  date.setHours(hour, minute, 0, 0);
+  return date.toISOString();
+}
+
 function seedData() {
   const customers: Customer[] = Array.from({ length: 25 }, (_, i) => {
     const base = names[i] ?? [`عميل تجريبي ${i + 1}`, `059${(7000000 + i * 7319).toString().slice(0, 7)}`, cities[i % cities.length], i % 4 === 0 ? `شركة تجريبية ${i + 1}` : ""];
@@ -145,26 +153,29 @@ function seedData() {
     };
   });
   const requestTypes: RequestType[] = ["مشروع / زيارة موقع", "استفسار", "صيانة", "طلب بيع", "شكوى", "متابعة", "طلب داخلي", "أخرى"];
-  const statuses: Status[] = ["موعد محدد", "بانتظار الاستلام", "تم الاستلام", "قيد التنفيذ", "بانتظار معلومات", "مسودة", "مغلق", "ملغي", "قيد المتابعة", "مشكلة"];
+  const statuses: Status[] = ["مسودة", "جديد", "بانتظار الاستلام", "تم الاستلام", "قيد التنفيذ", "قيد المتابعة", "بانتظار معلومات", "موعد محدد", "مؤجل", "مشكلة", "مكتمل", "مغلق", "ملغي", "قيد المعالجة"];
   const requests: RequestItem[] = Array.from({ length: 40 }, (_, i) => {
     const type = requestTypes[i % requestTypes.length];
-    const status = i === 0 ? "موعد محدد" : i === 5 ? "بانتظار الاستلام" : statuses[i % statuses.length];
-    const createdAt = iso(20 + i * 37);
+    const status = statuses[i % statuses.length];
+    const daysAgo = i % 9;
+    const createdAt = isoDays(daysAgo, 8 + (i % 9), (i * 11) % 60);
+    const transferredAt = ["مسودة", "جديد"].includes(status) ? "" : isoDays(daysAgo, 9 + (i % 7), (i * 13) % 60);
+    const acceptedAt = ["تم الاستلام", "قيد التنفيذ", "قيد المتابعة", "موعد محدد", "قيد المعالجة", "مكتمل", "مغلق"].includes(status) ? isoDays(Math.max(0, daysAgo - 1), 10 + (i % 6), (i * 17) % 60) : "";
     return {
       id: `r${i + 1}`,
       number: 125 + i,
       customerId: customers[i % customers.length].id,
       type,
-      description: i === 0 ? "العميل يرغب بزيارة الموقع لمعاينة المشروع وتحديد المقاسات." : `وصف تجريبي للطلب ${125 + i}`,
+      description: descriptionTemplates[type][i % descriptionTemplates[type].length],
       status,
       priority: i % 11 === 0 ? "عاجل" : i % 4 === 0 ? "مهم" : "عادي",
       urgentReason: i % 11 === 0 ? "العميل يحتاج ردًا سريعًا قبل نهاية اليوم." : "",
       assigneeId: routeSuggestion[type],
       createdBy: "قسم السنترال",
       createdAt,
-      transferredAt: status === "مسودة" ? "" : iso(15 + i * 37),
-      acceptedAt: ["تم الاستلام", "قيد التنفيذ", "موعد محدد", "مكتمل"].includes(status) ? iso(5 + i * 37) : "",
-      followUpAt: i % 3 === 0 ? iso(-1440 + i * 20) : i % 5 === 0 ? iso(90) : "",
+      transferredAt,
+      acceptedAt,
+      followUpAt: i % 4 === 0 ? isoDays(Math.max(0, daysAgo - 1), 14, (i * 7) % 60) : i % 5 === 0 ? isoDays(0, 16, (i * 5) % 60) : "",
       internalNotes: i === 4 ? "طلب مرتجع: موقع العميل غير واضح." : "",
     };
   });
@@ -177,7 +188,7 @@ function seedData() {
     id: `cl${i + 1}`,
     customerId: customers[i % customers.length].id,
     requestId: requests[i % requests.length].id,
-    at: iso(i * 45),
+    at: isoDays(i % 7, 8 + (i % 8), (i * 9) % 60),
     direction: i % 2 === 0 ? "وارد" : "صادر",
     result: ["تم الرد", "لم يرد", "تم التأكيد", "طلب معلومات إضافية"][i % 4],
     notes: "توثيق اتصال تجريبي ضمن سجل العميل والطلب.",
@@ -337,8 +348,22 @@ function App() {
     setComplaints(fresh.complaints);
     setMaintenance(fresh.maintenance);
     setNotifications(fresh.notifications);
+    localStorage.setItem("alnaseem-data-version", demoDataVersion);
     setToast("تمت إعادة بيانات التجربة");
   };
+
+  useEffect(() => {
+    if (localStorage.getItem("alnaseem-data-version") === demoDataVersion) return;
+    const fresh = seedData();
+    setCustomers(fresh.customers);
+    setRequests(fresh.requests);
+    setContacts(fresh.contacts);
+    setTimelines(fresh.timelines);
+    setComplaints(fresh.complaints);
+    setMaintenance(fresh.maintenance);
+    setNotifications(fresh.notifications);
+    localStorage.setItem("alnaseem-data-version", demoDataVersion);
+  });
 
   useEffect(() => {
     const context = document.modelContext;
@@ -564,13 +589,16 @@ function Stat({ icon, label, value, tone }: { icon: ReactNode; label: string; va
   return <div className={`stat ${tone}`}>{icon}<div><b>{value}</b><span>{label}</span></div></div>;
 }
 
-function WorkTile({ to, icon, count, title, hint, tone }: { to: string; icon: ReactNode; count: number; title: string; hint: string; tone: string }) {
+function WorkTile({ to, icon, count, title, hint, action, tone }: { to: string; icon: ReactNode; count: number; title: string; hint: string; action: string; tone: string }) {
   return (
     <Link className={`work-tile ${tone}`} to={to}>
       <span className="work-icon">{icon}</span>
+      <span className="work-copy">
+        <b>{title}</b>
+        <small>{hint}</small>
+      </span>
       <strong>{count}</strong>
-      <b>{title}</b>
-      <small>{hint}</small>
+      <em>{action}</em>
     </Link>
   );
 }
@@ -580,43 +608,20 @@ function Dashboard({ app }: { app: AppState }) {
   const waiting = app.requests.filter((r) => r.status === "بانتظار الاستلام");
   const followUps = app.requests.filter((r) => r.followUpAt || ["بانتظار معلومات", "موعد محدد", "قيد المتابعة"].includes(r.status));
   const todayRequests = app.requests.filter((r) => isToday(r.createdAt));
+  const transferred = app.requests.filter((r) => r.transferredAt && !["مغلق", "ملغي", "مكتمل"].includes(r.status));
+  const customersWithRequests = new Set(app.requests.map((request) => request.customerId)).size;
   const callsToday = app.contacts.filter((c) => isToday(c.at)).length;
-  const priorityList = unassigned.length ? unassigned : waiting.length ? waiting : followUps.length ? followUps : todayRequests;
-  const priorityTitle = unassigned.length ? "طلبات غير محولة" : waiting.length ? "طلبات بانتظار الاستلام" : followUps.length ? "متابعات تحتاج إجراء" : "طلبات اليوم";
-  const priorityTarget = unassigned.length ? "/unassigned" : waiting.length ? "/requests?status=بانتظار الاستلام" : followUps.length ? "/follow-ups" : "/requests?date=today";
   return (
-    <Page title="صباح الخير" subtitle="ابدئي بأهم إجراء، ثم انتقلي للباقي حسب الحاجة" action={<Link className="primary pill" to="/requests/new"><Plus size={18} />تسجيل اتصال / طلب جديد</Link>}>
-      <section className="focus-panel">
-        <div>
-          <span>الأولوية الآن</span>
-          <h2>{priorityTitle}</h2>
-          <p>{priorityList.length ? `يوجد ${priorityList.length} عنصر يحتاج متابعة منظمة.` : "لا توجد مهام ضاغطة الآن."}</p>
-        </div>
-        <Link className="primary pill" to={priorityTarget}><Clock size={18} />ابدأ بأهم مهمة الآن</Link>
-      </section>
-
+    <Page title="لوحة العمل" subtitle="صناديق مباشرة تفتح المهمة المطلوبة بدون قوائم إضافية" action={<Link className="primary pill" to="/requests/new"><Plus size={18} />تسجيل اتصال / طلب جديد</Link>}>
       <div className="work-grid">
-        <WorkTile to="/contacts-today" icon={<Phone />} count={callsToday} title="اتصالات اليوم" hint="راجعي آخر الاتصالات" tone="green" />
-        <WorkTile to="/requests?date=today" icon={<ClipboardList />} count={todayRequests.length} title="طلبات جديدة اليوم" hint="افتحي طلبات اليوم" tone="blue" />
-        <WorkTile to="/unassigned" icon={<AlertTriangle />} count={unassigned.length} title="غير محولة" hint="ما زالت عند السنترال" tone="red" />
-        <WorkTile to="/requests?status=بانتظار الاستلام" icon={<Clock />} count={waiting.length} title="بانتظار الاستلام" hint="ابدئي بها أولًا" tone="orange" />
-        <WorkTile to="/follow-ups" icon={<Bell />} count={followUps.length} title="تحتاج متابعة" hint="مواعيد وتنبيهات" tone="purple" />
-      </div>
-
-      <div className="grid two">
-        <Card title={priorityTitle}>
-          {priorityList.length ? <RequestTable requests={priorityList.slice(0, 5)} customers={app.customers} compact /> : <Empty />}
-          {priorityList.length > 5 && <Link className="secondary load-more" to={priorityTarget}>عرض كل النتائج</Link>}
-        </Card>
-        <Card title="اختصارات العمل">
-          <div className="shortcut-list">
-            <Link className="secondary" to="/requests/new"><Plus size={18} />تسجيل اتصال / طلب جديد</Link>
-            <Link className="secondary" to="/customers"><Users size={18} />بحث في العملاء</Link>
-            <Link className="secondary" to="/unassigned"><AlertTriangle size={18} />طلبات غير محولة</Link>
-            <Link className="secondary" to="/reports"><FileText size={18} />فتح التقارير</Link>
-            <Link className="secondary" to="/notifications"><Bell size={18} />الإشعارات</Link>
-          </div>
-        </Card>
+        <WorkTile to="/contacts-today" icon={<Phone />} count={callsToday} title="اتصالات اليوم" hint="كل اتصال وارد أو صادر تم تسجيله اليوم." action="فتح سجل الاتصالات" tone="green" />
+        <WorkTile to="/requests?date=today" icon={<ClipboardList />} count={todayRequests.length} title="طلبات اليوم" hint="طلبات أنشئت اليوم وتحتاج متابعة أولية." action="عرض طلبات اليوم" tone="blue" />
+        <WorkTile to="/unassigned" icon={<AlertTriangle />} count={unassigned.length} title="طلبات غير محولة" hint="طلبات ما زالت عند السنترال ولم تصل لقسم مسؤول." action="استكمال وتحويل" tone="red" />
+        <WorkTile to="/requests?status=بانتظار الاستلام" icon={<Clock />} count={waiting.length} title="بانتظار الاستلام" hint="طلبات أرسلت لقسم ولم يؤكد استلامها بعد." action="متابعة الاستلام" tone="orange" />
+        <WorkTile to="/follow-ups" icon={<Bell />} count={followUps.length} title="تحتاج متابعة" hint="مواعيد أو معلومات ناقصة أو طلبات تحتاج رجوع." action="فتح المتابعات" tone="purple" />
+        <WorkTile to="/requests?status=قيد التنفيذ" icon={<RefreshCw />} count={transferred.length} title="طلبات محولة" hint="طلبات خرجت من السنترال وتتابعها الأقسام." action="متابعة الأقسام" tone="cyan" />
+        <WorkTile to="/customers" icon={<Users />} count={customersWithRequests} title="العملاء" hint="بحث سريع وفتح ملف العميل وتاريخه." action="بحث عن عميل" tone="slate" />
+        <WorkTile to="/reports" icon={<FileText />} count={app.requests.length} title="التقارير" hint="فلترة حسب التاريخ والحالة والقسم مع طباعة." action="فتح التقارير" tone="indigo" />
       </div>
     </Page>
   );
